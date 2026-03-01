@@ -1,0 +1,120 @@
+{
+  "item.creaturesandbeasts.cindershell_shell_shard": "Trozo de Coraza de Ceniza",
+  "item.creaturesandbeasts.apple_slice": "Trozos de Manzana",
+  "item.creaturesandbeasts.lizard_egg": "Lizard Egg",
+  "item.creaturesandbeasts.entity_net": "Red",
+  "item.creaturesandbeasts.yeti_antler": "Cuerno de Yeti",
+  "item.creaturesandbeasts.yeti_hide": "Cuero de Yeti",
+
+  "item.creaturesandbeasts.pink_minipad_flower": "Pink Minipad Flower",
+  "item.creaturesandbeasts.light_pink_minipad_flower": "Light Pink Minipad Flower",
+  "item.creaturesandbeasts.yellow_minipad_flower": "Yellow Minipad Flower",
+  "item.creaturesandbeasts.pink_minipad_flower_glow": "Pink Glowing Minipad Flower",
+  "item.creaturesandbeasts.light_pink_minipad_flower_glow": "Light Pink Glowing Minipad Flower",
+  "item.creaturesandbeasts.yellow_minipad_flower_glow": "Yellow Glowing Minipad Flower",
+
+  "item.creaturesandbeasts.heal_spell_book_1": "Heal Spell Book",
+  "item.creaturesandbeasts.heal_spell_book_2": "Heal Spell Book",
+  "item.creaturesandbeasts.heal_spell_book_3": "Heal Spell Book",
+
+  "item.creaturesandbeasts.flower_crown": "Flower Crown",
+  "item.creaturesandbeasts.glowing_flower_crown": "Glowing Flower Crown",
+  "item.creaturesandbeasts.sporeling_backpack": "Sporeling Backpack",
+
+  "item.creaturesandbeasts.cinder_sword": "Cinder Sword",
+  "item.creaturesandbeasts.cinder_sword_1": "Cinder Sword",
+  "item.creaturesandbeasts.cinder_sword_2": "Cinder Sword",
+  "item.creaturesandbeasts.cinder_sword_3": "Cinder Sword",
+  "item.creaturesandbeasts.cinder_sword_4": "Cinder Sword",
+
+  "item.creaturesandbeasts.cactem_spear": "Cactem Spear",
+
+  "item.creaturesandbeasts.pink_waterlily": "Pink Waterlily",
+  "item.creaturesandbeasts.light_pink_waterlily": "Light Pink Waterlily",
+  "item.creaturesandbeasts.yellow_waterlily": "Yellow Waterlily",
+  "block.creaturesandbeasts.pink_waterlily_block": "Pink Waterlily",
+  "block.creaturesandbeasts.potted_pink_waterlily": "Potted Pink Waterlily",
+  "block.creaturesandbeasts.light_pink_waterlily_block": "Light Pink Waterlily",
+  "block.creaturesandbeasts.potted_light_pink_waterlily": "Potted Light Pink Waterlily",
+  "block.creaturesandbeasts.yellow_waterlily_block": "Yellow Waterlily",
+  "block.creaturesandbeasts.potted_yellow_waterlily": "Potted Yellow Waterlily",
+
+  "block.creaturesandbeasts.lizard_egg_block": "Bloque de Huevo de Lagartija",
+  "block.creaturesandbeasts.cinder_furnace": "Cinder Furnace",
+
+  "item.creaturesandbeasts.lizard_item_desert": "Lizard",
+  "item.creaturesandbeasts.lizard_item_desert_2": "Lizard",
+  "item.creaturesandbeasts.lizard_item_jungle": "Lizard",
+  "item.creaturesandbeasts.lizard_item_jungle_2": "Lizard",
+  "item.creaturesandbeasts.lizard_item_mushroom": "Lizard",
+
+  "item.creaturesandbeasts.sporeling_overworld_egg": "Overworld Sporeling Spawn Egg",
+  "item.creaturesandbeasts.sporeling_nether_egg": "Nether Sporeling Spawn Egg",
+  "item.creaturesandbeasts.little_grebe_spawn_egg": "Generar Zampullín",
+  "item.creaturesandbeasts.lizard_spawn_egg": "Generar Lagartija",
+  "item.creaturesandbeasts.cindershell_spawn_egg": "Generar Coraza de Ceniza",
+  "item.creaturesandbeasts.cindershell_bucket": "Cubo con Coraza de Ceniza",
+  "item.creaturesandbeasts.lilytad_spawn_egg": "Generar Nenufarín",
+  "item.creaturesandbeasts.yeti_spawn_egg": "Generar Yeti",
+  "item.creaturesandbeasts.minipad_spawn_egg": "Minipad Spawn Egg",
+  "item.creaturesandbeasts.end_whale_spawn_egg": "End Whale Spawn Egg",
+  "item.creaturesandbeasts.cactem_spawn_egg": "Cactem Spawn Egg",
+
+  "entity.creaturesandbeasts.little_grebe": "Zampullín",
+  "entity.creaturesandbeasts.little_grebe_chick": "Pollito de Zampullín",
+  "entity.creaturesandbeasts.cindershell": "Caparazon de Ceniza",
+  "entity.creaturesandbeasts.lizard": "Lagartija",
+  "entity.creaturesandbeasts.sporeling": "Sporeling",
+  "entity.creaturesandbeasts.yeti": "Yeti",
+  "entity.creaturesandbeasts.lilytad": "Nenufarín",
+  "entity.creaturesandbeasts.minipad": "Minipad",
+  "entity.creaturesandbeasts.end_whale": "End Whale",
+  "entity.creaturesandbeasts.cactem": "Cactem",
+
+  "entity.little_grebe_chick.ambient": "Graznido de Zampullín",
+  "entity.little_grebe.ambient": "Graznido de Pollito de Zampullin",
+  "entity.little_grebe.hurt": "Pollito de Zampullín Herido",
+  "entity.lizard.egg_hatch": "Huevo de Lagartija Eclosiona",
+
+  "entity.cindershell.ambient": "Coraza de Ceniza Gruñe",
+  "entity.cindershell.hurt": "Coraza de Ceniza Herida",
+  "entity.cindershell.eat": "Coraza de Ceniza Come",
+
+  "entity.sporeling_overworld.ambient": "Champiñin Chilla",
+  "entity.sporeling_overworld.hurt": "Champiñin Herido",
+  "entity.sporeling_nether.ambient": "Chillido de Champiñin",
+  "entity.sporeling_nether.hurt": "Champiñin Ataca",
+  "entity.sporeling_warped.ambient": "Hongin Chilla",
+  "entity.sporeling_warped.hurt": "Hongin Herido",
+
+  "entity.sporeling.bite": "Champiñin Muerde",
+  "entity.lilytad.ambient": "Chillido de Nenufarín",
+  "entity.lilytad.hurt": "Nenufarín es Herido",
+  "entity.lilytad.death": "Nenifarín Muere",
+
+  "entity.yeti.ambient": "Yeti Gruñe",
+  "entity.yeti.hurt": "Yeti Herido",
+  "entity.yeti.step": "Pasos",
+  "entity.yeti.hit": "Yeti Ataca",
+  "entity.yeti_adult.eat": "Yeti Come",
+  "entity.yeti_baby.eat": "Cria de Yeti Come",
+
+  "entity.minipad.hurt": "Minipad hurts",
+  "entity.minipad.step": "Minipad walks",
+  "entity.minipad.swim": "Minipad swims",
+
+  "entity.end_whale.ambient": "End Whale calls",
+
+  "entity.cactem.ambient": "Cactem creaks",
+  "entity.cactem.hurt": "Cactem hurts",
+  "entity.cactem.heal": "Cactem casts a spell",
+
+  "item.heal_spell_book.player_heal": "Spell is cast",
+  "item.cactem_spear.throw": "Spear flies",
+
+  "itemGroup.cnb_tab": "Criaturas y Bestias",
+
+  "creaturesandbeasts.container.cinder_furnace": "Cinder Furnace",
+
+  "creaturesandbeasts.item.tooltip.cinder_furnace": "§7Right click a Cindershell to equip"
+}

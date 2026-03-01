@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "FFF"
+  ],
+  "key": {
+    "F": {
+      "tag": "creaturesandbeasts:glowing_minipad_flowers"
+    }
+  },
+  "result": {
+    "item": "creaturesandbeasts:glowing_flower_crown"
+  }
+}

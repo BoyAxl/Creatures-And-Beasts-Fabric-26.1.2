@@ -1,0 +1,10 @@
+{
+  "parent": "creaturesandbeasts:block/orientable_with_sides",
+  "textures": {
+    "top": "creaturesandbeasts:block/cinder_furnace_top",
+    "front": "creaturesandbeasts:block/cinder_furnace_front",
+    "left": "creaturesandbeasts:block/cinder_furnace_left",
+    "right": "creaturesandbeasts:block/cinder_furnace_right",
+    "back": "creaturesandbeasts:block/cinder_furnace_back"
+  }
+}

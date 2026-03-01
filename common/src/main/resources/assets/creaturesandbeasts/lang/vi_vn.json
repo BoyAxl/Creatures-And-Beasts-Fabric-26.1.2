@@ -1,0 +1,120 @@
+{
+  "item.creaturesandbeasts.cindershell_shell_shard": "Mảnh mai rùa than hồng",
+  "item.creaturesandbeasts.apple_slice": "Táo cắt lát",
+  "item.creaturesandbeasts.lizard_egg": "Trứng thằn lằn",
+  "item.creaturesandbeasts.entity_net": "Vợt lưới",
+  "item.creaturesandbeasts.yeti_antler": "Sừng người tuyết",
+  "item.creaturesandbeasts.yeti_hide": "Da người tuyết",
+
+  "item.creaturesandbeasts.pink_minipad_flower": "Bông súng nhỏ hồng",
+  "item.creaturesandbeasts.light_pink_minipad_flower": "Bông súng nhỏ hồng nhạt",
+  "item.creaturesandbeasts.yellow_minipad_flower": "Bông súng nhỏ vàng",
+  "item.creaturesandbeasts.pink_minipad_flower_glow": "Bông súng nhỏ hồng phát sáng",
+  "item.creaturesandbeasts.light_pink_minipad_flower_glow": "Bông súng nhỏ hồng nhạt phát sáng",
+  "item.creaturesandbeasts.yellow_minipad_flower_glow": "Bông súng nhỏ vàng phát sáng",
+
+  "item.creaturesandbeasts.heal_spell_book_1": "Sách phép chữa lành",
+  "item.creaturesandbeasts.heal_spell_book_2": "Sách phép chữa lành",
+  "item.creaturesandbeasts.heal_spell_book_3": "Sách phép chữa lành",
+
+  "item.creaturesandbeasts.flower_crown": "Vòng hoa đội đầu",
+  "item.creaturesandbeasts.glowing_flower_crown": "Vòng hoa đội đầu phát sáng",
+  "item.creaturesandbeasts.sporeling_backpack": "Ba lô giữ nấm lùn di động",
+
+  "item.creaturesandbeasts.cinder_sword": "Kiếm than hồng",
+  "item.creaturesandbeasts.cinder_sword_1": "Kiếm than hồng",
+  "item.creaturesandbeasts.cinder_sword_2": "Kiếm than hồng",
+  "item.creaturesandbeasts.cinder_sword_3": "Kiếm than hồng",
+  "item.creaturesandbeasts.cinder_sword_4": "Kiếm than hồng",
+
+  "item.creaturesandbeasts.cactem_spear": "Giáo của người xương rồng",
+
+  "item.creaturesandbeasts.pink_waterlily": "Bông súng hồng",
+  "item.creaturesandbeasts.light_pink_waterlily": "Bông súng hồng nhạt",
+  "item.creaturesandbeasts.yellow_waterlily": "Bông súng vàng",
+  "block.creaturesandbeasts.pink_waterlily_block": "Bông súng hồng",
+  "block.creaturesandbeasts.potted_pink_waterlily": "Chậu bông súng hồng",
+  "block.creaturesandbeasts.light_pink_waterlily_block": "Bông súng hồng nhạt",
+  "block.creaturesandbeasts.potted_light_pink_waterlily": "Chậu bông súng hồng nhạt",
+  "block.creaturesandbeasts.yellow_waterlily_block": "Bông súng vàng",
+  "block.creaturesandbeasts.potted_yellow_waterlily": "Chậu bông súng vàng nhạt",
+
+  "block.creaturesandbeasts.lizard_egg_block": "Khối trứng thằn lằn",
+  "block.creaturesandbeasts.cinder_furnace": "Lò than hồng",
+
+  "item.creaturesandbeasts.lizard_item_desert": "Thằn lằn",
+  "item.creaturesandbeasts.lizard_item_desert_2": "Thằn lằn",
+  "item.creaturesandbeasts.lizard_item_jungle": "Thằn lằn",
+  "item.creaturesandbeasts.lizard_item_jungle_2": "Thằn lằn",
+  "item.creaturesandbeasts.lizard_item_mushroom": "Thằn lằn",
+
+  "item.creaturesandbeasts.sporeling_overworld_egg": "Trứng sinh ra Nấm lùn di động",
+  "item.creaturesandbeasts.sporeling_nether_egg": "Trứng sinh ra Nấm lùn di động địa ngục",
+  "item.creaturesandbeasts.little_grebe_spawn_egg": "Trứng sinh ra Chim lặn",
+  "item.creaturesandbeasts.lizard_spawn_egg": "Trứng sinh ra Thằn lằn",
+  "item.creaturesandbeasts.cindershell_spawn_egg": "Trứng sinh ra Rùa than hồng",
+  "item.creaturesandbeasts.cindershell_bucket": "Xô rùa than hồng",
+  "item.creaturesandbeasts.lilytad_spawn_egg": "Trứng sinh ra Lá bèo di động",
+  "item.creaturesandbeasts.yeti_spawn_egg": "Trứng sinh ra người tuyết",
+  "item.creaturesandbeasts.minipad_spawn_egg": "Trứng sinh ra Lá bèo nhỏ biết đi",
+  "item.creaturesandbeasts.end_whale_spawn_egg": "Trứng sinh ra Cá voi End",
+  "item.creaturesandbeasts.cactem_spawn_egg": "Trứng sinh ra Người xương rồng",
+
+  "entity.creaturesandbeasts.little_grebe": "Chim lặn",
+  "entity.creaturesandbeasts.little_grebe_chick": "Chim lặn con",
+  "entity.creaturesandbeasts.cindershell": "Rùa than hồng",
+  "entity.creaturesandbeasts.lizard": "Thằn lằn",
+  "entity.creaturesandbeasts.sporeling": "Nấm lùn di động",
+  "entity.creaturesandbeasts.yeti": "Người tuyết",
+  "entity.creaturesandbeasts.lilytad": "Lá bèo di động",
+  "entity.creaturesandbeasts.minipad": "Lá bèo nhỏ biết đi",
+  "entity.creaturesandbeasts.end_whale": "Cá voi End",
+  "entity.creaturesandbeasts.cactem": "Người xương rồng",
+
+  "entity.little_grebe_chick.ambient": "Little Grebe cheeps",
+  "entity.little_grebe.ambient": "Little Grebe cheeps",
+  "entity.little_grebe.hurt": "Little Grebe hurts",
+  "entity.lizard.egg_hatch": "Trứng thằn lằn nở",
+
+  "entity.cindershell.ambient": "Cindershell growls",
+  "entity.cindershell.hurt": "Cindershell hurts",
+  "entity.cindershell.eat": "Cindershell eats",
+
+  "entity.sporeling_overworld.ambient": "Sporeling squeaks",
+  "entity.sporeling_overworld.hurt": "Sporeling hurts",
+  "entity.sporeling_nether.ambient": "Sporeling growls",
+  "entity.sporeling_nether.hurt": "Hostile Sporeling hurts",
+  "entity.sporeling_warped.ambient": "Sporeling squeaks",
+  "entity.sporeling_warped.hurt": "Neutral Sporeling hurts",
+
+  "entity.sporeling.bite": "Sporeling bites",
+  "entity.lilytad.ambient": "Lilytad chirrs",
+  "entity.lilytad.hurt": "Lilytad hurts",
+  "entity.lilytad.death": "Lilytad dies",
+
+  "entity.yeti.ambient": "Yeti growls",
+  "entity.yeti.hurt": "Yeti hurts",
+  "entity.yeti.step": "Yeti walks",
+  "entity.yeti.hit": "Yeti attacks",
+  "entity.yeti_adult.eat": "Yeti eats",
+  "entity.yeti_baby.eat": "Baby Yeti chomps",
+
+  "entity.minipad.hurt": "Minipad hurts",
+  "entity.minipad.step": "Minipad walks",
+  "entity.minipad.swim": "Minipad swims",
+
+  "entity.end_whale.ambient": "End Whale calls",
+
+  "entity.cactem.ambient": "Cactem creaks",
+  "entity.cactem.hurt": "Cactem hurts",
+  "entity.cactem.heal": "Cactem casts a spell",
+
+  "item.heal_spell_book.player_heal": "Spell is cast",
+  "item.cactem_spear.throw": "Spear flies",
+
+  "itemGroup.cnb_tab": "Creatures And Beasts",
+
+  "creaturesandbeasts.container.cinder_furnace": "Lò than hồng",
+
+  "creaturesandbeasts.item.tooltip.cinder_furnace": "§7Right click a Cindershell to equip"
+}
