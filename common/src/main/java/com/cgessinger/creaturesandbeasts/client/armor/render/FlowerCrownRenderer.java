@@ -11,14 +11,18 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.cache.object.BakedGeoModel;
+import software.bernie.geckolib.cache.object.GeoBone;
 import software.bernie.geckolib.renderer.GeoArmorRenderer;
 
 @Environment(EnvType.CLIENT)
 public class FlowerCrownRenderer extends GeoArmorRenderer<FlowerCrownItem> {
     public FlowerCrownRenderer() {
         super(new FlowerCrownModel());
+    }
 
-        this.head = this.getGeoModel().getBone("group").orElseThrow();
+    @Override
+    public GeoBone getHeadBone() {
+        return this.getGeoModel().getBone("group").orElseThrow();
     }
 
     @Override

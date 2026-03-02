@@ -57,6 +57,7 @@ tasks {
     }
 
     shadowJar {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         exclude("architectury.common.json")
         relocate("org.infernalstudios.config", "com.cgessinger.creaturesandbeasts.config.library")
 
