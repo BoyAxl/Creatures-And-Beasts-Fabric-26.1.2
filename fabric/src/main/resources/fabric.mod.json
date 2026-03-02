@@ -41,5 +41,6 @@
         "minecraft": "${minecraft_version}",
         "architectury": ">=${architectury_version}",
         "geckolib": ">=${geckolib_version}"
-    }
+    },
+    "accessWidener": "creaturesandbeasts.accesswidener"
 }
