@@ -256,7 +256,7 @@ public class LilytadEntity extends Animal implements Shearable, GeoEntity {
     private static final RawAnimation WALK_ANIMATION = RawAnimation.begin().thenLoop("lilytad.walk");
 
     private <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
-        if (this.walkAnimation.isMoving()) {
+        if (!(this.walkAnimation.speed() > -0.05 && this.walkAnimation.speed() < 0.05)) {
             event.getController().setAnimation(WALK_ANIMATION);
             return PlayState.CONTINUE;
         }

@@ -789,7 +789,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     public static final RawAnimation EAT_ANIMATION = RawAnimation.begin().thenLoop("cindershell_eat");
 
     private <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
-        if (this.walkAnimation.isMoving()) {
+        if (!(this.walkAnimation.speed() > -0.05 && this.walkAnimation.speed() < 0.05)) {
             event.getController().setAnimation(this.isBaby() ? BABY_WALK_ANIMATION : WALK_ANIMATION);
         } else if (this.getEating()) {
             event.getController().setAnimation(IDLE_EAT_ANIMATION);

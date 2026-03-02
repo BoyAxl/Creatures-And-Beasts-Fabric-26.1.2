@@ -453,7 +453,7 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
         if (this.entityData.get(LAYING_EGG)) {
             event.getController().setAnimation(DIG_ANIMATION);
             return PlayState.CONTINUE;
-        } else if (this.walkAnimation.isMoving()) {
+        } else if (!(this.walkAnimation.speed() > -0.13 && this.walkAnimation.speed() < 0.13)) {
             event.getController().setAnimation(WALK_ANIMATION);
             return PlayState.CONTINUE;
         } else if (this.isPartying()) {

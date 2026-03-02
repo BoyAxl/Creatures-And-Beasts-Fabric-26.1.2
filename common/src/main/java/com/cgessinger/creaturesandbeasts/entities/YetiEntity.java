@@ -416,8 +416,8 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         return this.isBaby() ? null : CNBSoundEvents.YETI_HURT.get();
     }
 
-    private static final RawAnimation BABY_EAT_ANIMATION = RawAnimation.begin().thenLoop("yeti_baby_eat");
-    private static final RawAnimation ADULT_EAT_ANIMATION = RawAnimation.begin().thenLoop("yeti_adult_eat");
+    private static final RawAnimation BABY_EAT_ANIMATION = RawAnimation.begin().thenPlay("yeti_baby_eat");
+    private static final RawAnimation ADULT_EAT_ANIMATION = RawAnimation.begin().thenPlay("yeti_adult_eat");
     private static final RawAnimation ATTACK_ANIMATION = RawAnimation.begin().thenPlay("yeti_attack");
     private static final RawAnimation BABY_WALK_ANIMATION = RawAnimation.begin().thenLoop("yeti_baby_walk");
     private static final RawAnimation ADULT_WALK_ANIMATION = RawAnimation.begin().thenLoop("yeti_adult_walk");

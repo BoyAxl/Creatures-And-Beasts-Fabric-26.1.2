@@ -376,8 +376,8 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     private static final RawAnimation ADMIRE_ANIMATION = RawAnimation.begin().thenLoop("cactem_admire");
     private static final RawAnimation ELDER_WALK_ANIMATION = RawAnimation.begin().thenLoop("cactem_elder_walk");
     private static final RawAnimation BABY_RUN_ANIMATION = RawAnimation.begin().thenLoop("cactem_baby_run");
-    private static final RawAnimation RUN_THROW_ANIMATION = RawAnimation.begin().thenLoop("cactem_run_throw");
-    private static final RawAnimation THROW_ANIMATION = RawAnimation.begin().thenLoop("cactem_throw");
+    private static final RawAnimation RUN_THROW_ANIMATION = RawAnimation.begin().thenPlay("cactem_run_throw");
+    private static final RawAnimation THROW_ANIMATION = RawAnimation.begin().thenPlay("cactem_throw");
     private static final RawAnimation RUN_ANIMATION = RawAnimation.begin().thenLoop("cactem_elder_walk");
     private static final RawAnimation IDLE_ANIMATION = RawAnimation.begin().thenLoop("cactem_idle");
     private static final RawAnimation IDLE_ANIMATION_2 = RawAnimation.begin().thenLoop("cactem_idle_2");
@@ -387,7 +387,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             event.getController().setAnimation(ELDER_HEAL_ANIMATION);
         } else if (this.isTrading()) {
             event.getController().setAnimation(ADMIRE_ANIMATION);
-        } else if (this.walkAnimation.isMoving()) {
+        } else if (!(this.walkAnimation.speed() > -0.075 && this.walkAnimation.speed() < 0.075)) {
             if (this.isElder()) {
                 event.getController().setAnimation(ELDER_WALK_ANIMATION);
             } else if (this.isBaby()) {

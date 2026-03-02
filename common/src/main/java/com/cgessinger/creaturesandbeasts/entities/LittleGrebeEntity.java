@@ -227,7 +227,7 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
         } else if (this.isInWater()) {
             event.getController().setAnimation(SWIM_ANIMATION);
             return PlayState.CONTINUE;
-        } else if (this.walkAnimation.isMoving()) {
+        } else if (!(this.walkAnimation.speed() > -0.15 && this.walkAnimation.speed() < 0.15)) {
             if (this.isBaby()) {
                 event.getController().setAnimation(CHICK_WALK_ANIMATION);
             } else {

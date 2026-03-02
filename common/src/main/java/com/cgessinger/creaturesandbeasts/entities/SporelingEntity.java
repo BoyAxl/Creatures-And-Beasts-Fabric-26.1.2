@@ -489,7 +489,7 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
             event.getController().setAnimation(WAVE_ANIMATION);
         } else if (this.isInspecting()) {
             event.getController().setAnimation(CONVERT_ANIMATION);
-        } else if (this.walkAnimation.isMoving()) {
+        } else if (!(this.walkAnimation.speed() > -0.15 && this.walkAnimation.speed() < 0.15)) {
             if (this.isRunning()) {
                 event.getController().setAnimation(RUN_ANIMATION);
             } else {
