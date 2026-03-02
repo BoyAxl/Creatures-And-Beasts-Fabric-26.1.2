@@ -63,6 +63,10 @@ dependencies {
     shadowCommon(project(path = ":common", configuration = "transformProductionForge")) { isTransitive = false }
     shadowCommon("org.infernalstudios:config:${rootProject.property("infernalstudios_config_version")}")
 
+    // required because unfortunately Forge
+    shadowCommon("com.electronwill.night-config:core:${rootProject.property("nightconfig_version")}")
+    shadowCommon("com.electronwill.night-config:toml:${rootProject.property("nightconfig_version")}")
+
     // Forge doesn't bundle MixinExtras, so we should include it.
     compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:0.5.0")!!)
     implementation(include("io.github.llamalad7:mixinextras-forge:0.5.0")!!)
@@ -82,6 +86,7 @@ tasks {
     shadowJar {
         exclude("architectury.common.json")
         relocate("org.infernalstudios.config", "com.cgessinger.creaturesandbeasts.config.library")
+        relocate("com.electronwill.nightconfig", "com.cgessinger.creaturesandbeasts.config.nightconfig")
 
         configurations = listOf(shadowCommon)
         archiveClassifier.set("dev-shadow")
