@@ -321,13 +321,13 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     }
 
     private <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
-        if (this.isInWater() && !this.walkAnimation.isMoving()) {
+        if (this.isInWater() && !(this.walkAnimation.speed() > -0.15f && this.walkAnimation.speed() < 0.15)) {
             event.getController().setAnimation(SWIM_ANIMATION);
             return PlayState.CONTINUE;
         } else if (this.isInWater()) {
             event.getController().setAnimation(FLOAT_ANIMATION);
             return PlayState.CONTINUE;
-        } else if (!this.walkAnimation.isMoving()) {
+        } else if (!(this.walkAnimation.speed() > -0.15f && this.walkAnimation.speed() < 0.15)) {
             event.getController().setAnimation(WALK_ANIMATION);
             return PlayState.CONTINUE;
         }
