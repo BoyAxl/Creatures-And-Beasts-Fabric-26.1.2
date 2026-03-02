@@ -13,7 +13,7 @@ public interface ModLoaderProxy {
 
     // Custom event calls
     default boolean callAnimalTameEvent(Animal animal, Player tamer) {
-        return !EntityEvent.ANIMAL_TAME.invoker().tame(animal, tamer).interruptsFurtherEvaluation();
+        return EntityEvent.ANIMAL_TAME.invoker().tame(animal, tamer).interruptsFurtherEvaluation();
     }
 
     default void callPlayerSmeltedEvent(Player player, ItemStack stack) {

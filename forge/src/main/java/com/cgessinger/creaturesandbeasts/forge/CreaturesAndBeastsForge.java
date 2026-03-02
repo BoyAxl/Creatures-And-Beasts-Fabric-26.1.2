@@ -94,7 +94,7 @@ public class CreaturesAndBeastsForge implements ModLoaderProxy {
 
     @Override
     public boolean callAnimalTameEvent(Animal animal, Player tamer) {
-        return ModLoaderProxy.super.callAnimalTameEvent(animal, tamer) && ForgeEventFactory.onAnimalTame(animal, tamer);
+        return ModLoaderProxy.super.callAnimalTameEvent(animal, tamer) || ForgeEventFactory.onAnimalTame(animal, tamer);
     }
 
     @Override
