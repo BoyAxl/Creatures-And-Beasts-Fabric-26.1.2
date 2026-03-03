@@ -22,8 +22,8 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
         super(type, containerId, playerInventory, access);
     }
 
-    @Inject(method = "createResult", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;isEmpty()Z", ordinal = 1))
-    private void checkAnvilChange(CallbackInfo ci, @Local(ordinal = 0) ItemStack stack, @Local(ordinal = 1) ItemStack stack2, @Local(ordinal = 1) int j) {
+    @Inject(method = "createResult", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;isEmpty()Z", ordinal = 2))
+    private void checkAnvilChange(CallbackInfo ci, @Local(ordinal = 0) ItemStack stack, @Local(ordinal = 1) ItemStack stack2) {
         var result = CreaturesAndBeasts.getInstance().getEvents().onAnvilChange(stack, stack2);
         if (result != null) {
             this.cost.set(result.getLeft());
