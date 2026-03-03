@@ -203,10 +203,10 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     }
 
-    @Override
+    /*@Override
     public boolean canBeCollidedWith() {
         return this.isAlive();
-    }
+    }*/
 
     @Override
     public boolean canBreatheUnderwater() {
