@@ -473,6 +473,11 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
         return this.factory;
     }
 
+    @Override
+    public float getVoicePitch() {
+        return (this.random.nextFloat() - this.random.nextFloat()) * 0.2F + 1.0F;
+    }
+
     static class LizardBreedGoal extends BreedGoal {
         private final LizardEntity lizard;
 
