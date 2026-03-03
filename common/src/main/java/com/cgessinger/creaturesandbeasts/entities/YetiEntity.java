@@ -427,7 +427,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
             event.getController().setAnimation(this.isBaby() ? BABY_EAT_ANIMATION : ADULT_EAT_ANIMATION);
         } else if (this.isAttacking()) {
             event.getController().setAnimation(ATTACK_ANIMATION);
-        } else if (this.walkAnimation.isMoving()) {
+        } else if (!(this.walkAnimation.speed() > -0.15 && this.walkAnimation.speed() < 0.15)) {
             event.getController().setAnimation(this.isBaby() ? BABY_WALK_ANIMATION : ADULT_WALK_ANIMATION);
         } else {
             event.getController().forceAnimationReset();
