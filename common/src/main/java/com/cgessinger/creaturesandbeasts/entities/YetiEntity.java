@@ -214,7 +214,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
 
         if (!(this.isEating() || this.isAttacking())) {
             if (!this.level().isClientSide && item.getItem() == Items.MELON_SLICE && !this.isPassive()) {
-                this.setOwnerUUID(player.getUUID());
+                this.tame(player);
                 return this.startEat(player, item.copy());
             } else if (item.getItem() == Items.SWEET_BERRIES) {
                 if (!this.level().isClientSide && this.getAge() == 0 && this.canFallInLove()) {
