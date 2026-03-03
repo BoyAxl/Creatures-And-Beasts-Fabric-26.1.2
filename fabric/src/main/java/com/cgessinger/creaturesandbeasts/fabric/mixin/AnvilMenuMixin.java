@@ -22,13 +22,17 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
         super(type, containerId, playerInventory, access);
     }
 
-    @Inject(method = "createResult", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;isEmpty()Z", ordinal = 2))
+    @Inject(method = "createResult", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;isEmpty()Z", ordinal = 2), cancellable = true)
     private void checkAnvilChange(CallbackInfo ci, @Local(ordinal = 0) ItemStack stack, @Local(ordinal = 1) ItemStack stack2) {
         var result = CreaturesAndBeasts.getInstance().getEvents().onAnvilChange(stack, stack2);
         if (result != null) {
+            if (result.getRight().isEmpty())
+                return;
+
             this.cost.set(result.getLeft());
             this.repairItemCountCost = result.getMiddle();
             this.resultSlots.setItem(0, result.getRight());
+            ci.cancel();
         }
     }
 }
