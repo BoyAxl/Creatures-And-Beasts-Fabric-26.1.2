@@ -18,7 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.tags.DamageTypeTags;
-import net.minecraft.tags.FluidTags;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
@@ -193,31 +193,45 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
         return null;
     }
 
-    public boolean canRideInBackpack(Player player) {
-        return this.isTame()
-                && this.isOwnedBy(player)
-                && player.isSecondaryUseActive()
-                && player.getPassengers().isEmpty()
-                && player.getItemBySlot(EquipmentSlot.CHEST).is(CNBItems.SPORELING_BACKPACK.get());
+    public static void positionBackpackPassenger(Player player, SporelingEntity sporelingEntity, Entity.MoveFunction moveFunction) {
+        double y = player.getY() + 0.68D;
+        float rotation = 0.0F;
+        float attackTime = player.getAttackAnim(0);
+        if (attackTime > 0.0F) {
+            rotation = Mth.sin(Mth.sqrt(attackTime) * ((float)Math.PI * 2.0F)) * 0.2F * Mth.RAD_TO_DEG;
+        }
+
+        double distance = player.isCrouching() ? 0.7D : 0.45D;
+        moveFunction.accept(sporelingEntity, player.getX() + Mth.sin((player.yBodyRot + rotation) * Mth.DEG_TO_RAD) * distance, y, player.getZ() - Mth.cos((player.yBodyRot + rotation) * Mth.DEG_TO_RAD) * distance);
+        clampBackpackRotation(player, sporelingEntity);
     }
 
-    private boolean tryRideInBackpack(Player player) {
-        return this.canRideInBackpack(player) && this.startRiding(player);
+    public static void clampBackpackRotation(Player player, SporelingEntity sporelingEntity) {
+        sporelingEntity.setYBodyRot(player.yBodyRot + 180.0F);
+        sporelingEntity.setYRot(player.yBodyRot + 180.0F);
+        sporelingEntity.setYHeadRot(sporelingEntity.getYRot());
+    }
+
+    public static void dropFromBackpack(Player player, SporelingEntity sporelingEntity) {
+        positionBackpackPassenger(player, sporelingEntity, (entity, x, y, z) -> entity.snapTo(x, y, z));
+        sporelingEntity.removeVehicle();
+        sporelingEntity.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        sporelingEntity.setOnGround(false);
+        sporelingEntity.setOrderedToSit(false);
     }
 
     @Override
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         ItemStack itemstack = player.getItemInHand(hand);
-        if (this.level().isClientSide()) {
-            if (this.isTame()) {
-                InteractionResult interactionresult = super.mobInteract(player, hand);
-                if (!interactionresult.consumesAction() && this.isOwnedBy(player)) {
-                    if (this.tryRideInBackpack(player)) {
-                        return InteractionResult.SUCCESS;
-                    }
-                }
+        if (player.isSecondaryUseActive() && this.isOwnedBy(player)) {
+            if (!this.level().isClientSide()) {
+                CreaturesAndBeasts.getInstance().getEvents().tryMountBackpackSporeling(player, this);
             }
 
+            return this.level().isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
+        }
+
+        if (this.level().isClientSide()) {
             boolean flag = this.isOwnedBy(player) || this.isTame() || itemstack.is(Items.BONE) && !this.isTame();
             return flag ? InteractionResult.CONSUME : InteractionResult.PASS;
         } else {
@@ -234,14 +248,10 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
 
                 InteractionResult interactionresult = super.mobInteract(player, hand);
                 if (!interactionresult.consumesAction() && this.isOwnedBy(player)) {
-                    if (this.tryRideInBackpack(player)) {
-                        return InteractionResult.SUCCESS;
-                    } else {
-                        this.setOrderedToSit(!this.isOrderedToSit());
-                        this.jumping = false;
-                        this.navigation.stop();
-                        this.setTarget(null);
-                    }
+                    this.setOrderedToSit(!this.isOrderedToSit());
+                    this.jumping = false;
+                    this.navigation.stop();
+                    this.setTarget(null);
                     return InteractionResult.SUCCESS;
                 }
 
@@ -456,15 +466,6 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
 
     protected boolean shouldDespawnInPeaceful() {
         return this.getSporelingType().getHostility() == SporelingType.SporelingHostility.HOSTILE;
-    }
-
-    @Override
-    public void rideTick() {
-        super.rideTick();
-        if (this.isPassenger() && (this.getVehicle().isSpectator() || this.getFluidHeight(FluidTags.WATER) > this.getFluidJumpThreshold() || this.getVehicle().getVehicle() instanceof EndWhaleEntity || this.getVehicle().isVisuallySwimming())) {
-            this.stopRiding();
-            this.setOrderedToSit(false);
-        }
     }
 
     @Override

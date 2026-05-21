@@ -9,7 +9,6 @@ import com.cgessinger.creaturesandbeasts.util.CNBRegistrySupplier;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
-import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -88,9 +87,8 @@ public class CreaturesAndBeasts {
         this.events.createEntityAttributes();
 
         ServerTickEvents.END_SERVER_TICK.register(server -> server.getPlayerList().getPlayers().forEach(this.events::onLivingTick));
-        UseBlockCallback.EVENT.register((player, level, hand, hitResult) -> this.events.onBackpackSporelingUse(player));
-        UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> this.events.onBackpackSporelingUse(player));
-        UseItemCallback.EVENT.register((player, level, hand) -> this.events.onBackpackSporelingUse(player));
+        UseBlockCallback.EVENT.register((player, level, hand, hitResult) -> this.events.onBackpackSporelingUseBlock(player, hitResult));
+        UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> this.events.onBackpackSporelingUseEntity(player, entity));
     }
 
     public CNBEvents getEvents() {
