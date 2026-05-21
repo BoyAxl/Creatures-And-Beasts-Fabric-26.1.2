@@ -5,13 +5,12 @@ import com.cgessinger.creaturesandbeasts.entities.ai.MountAdultGoal;
 import com.cgessinger.creaturesandbeasts.entities.ai.SmoothSwimGoal;
 import com.cgessinger.creaturesandbeasts.init.CNBEntityTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
@@ -19,7 +18,6 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
-import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -29,42 +27,39 @@ import net.minecraft.world.entity.ai.util.RandomPos;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.ServerLevelAccessor;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.GeoAnimatable;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.GeoAnimatable;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.animation.AnimationController;
+import com.geckolib.animation.state.AnimationTest;
+import com.geckolib.animation.RawAnimation;
+import com.geckolib.animation.object.PlayState;
+import com.geckolib.util.GeckoLibUtil;
 
 import java.util.Random;
-import java.util.UUID;
-
 import static com.cgessinger.creaturesandbeasts.init.CNBTags.Items.LITTLE_GREBE_FOOD;
 
 public class LittleGrebeEntity extends Animal implements GeoEntity {
     private static final EntityDataAccessor<BlockPos> TRAVEL_POS = SynchedEntityData.defineId(LittleGrebeEntity.class, EntityDataSerializers.BLOCK_POS);
-    private final UUID healthReductionUUID = UUID.fromString("189faad9-35de-4e15-a598-82d147b996d7");
+    private static final Identifier HEALTH_REDUCTION_ID = Identifier.fromNamespaceAndPath("cnb", "little_grebe_baby_health_reduction");
     public float flapSpeed;
     private float nextFlap = 1.0F;
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
 
     public LittleGrebeEntity(EntityType<LittleGrebeEntity> type, Level worldIn) {
         super(type, worldIn);
-        this.setPathfindingMalus(BlockPathTypes.WATER, 0.0F);
+        this.setPathfindingMalus(PathType.WATER, 0.0F);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
-        return Mob.createMobAttributes()
+        return Animal.createAnimalAttributes()
                 .add(Attributes.MAX_HEALTH, 10.0D)
                 .add(Attributes.MOVEMENT_SPEED, 0.25D);
     }
@@ -75,8 +70,8 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
         this.goalSelector.addGoal(1, new MountAdultGoal(this, 1.2D));
         this.goalSelector.addGoal(2, new SmoothSwimGoal(this));
         this.goalSelector.addGoal(3, new PanicGoal(this, 1.0D));
-        this.goalSelector.addGoal(3, new TemptGoal(this, 1.0D, Ingredient.of(LITTLE_GREBE_FOOD), false));
-        this.goalSelector.addGoal(4, new BreedGoal(this, 1.0D));
+        this.goalSelector.addGoal(3, new BreedGoal(this, 1.0D));
+        this.goalSelector.addGoal(4, new TemptGoal(this, 1.0D, this::isFood, false));
         this.goalSelector.addGoal(5, new FollowParentGoal(this, 1.25D));
         this.goalSelector.addGoal(6, new LittleGrebeEntity.LittleGrebeRandomStrollGoal(this, 1.0D, 60, 1));
         this.goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 6.0F));
@@ -84,16 +79,16 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
         this.goalSelector.addGoal(9, new GoToWaterGoal(this, 0.8D));
     }
 
-    public static boolean checkGrebeSpawnRules(EntityType<LittleGrebeEntity> animal, LevelAccessor worldIn, MobSpawnType reason, BlockPos pos, RandomSource randomIn) {
+    public static boolean checkGrebeSpawnRules(EntityType<LittleGrebeEntity> animal, LevelAccessor worldIn, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
         return worldIn.getRawBrightness(pos, 0) > 8;
     }
 
     @Override
-    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, MobSpawnType reason, @Nullable SpawnGroupData spawnDataIn, @Nullable CompoundTag dataTag) {
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, EntitySpawnReason reason, @Nullable SpawnGroupData spawnDataIn) {
         if (spawnDataIn == null) {
             spawnDataIn = new AgeableMobGroupData(0.6F);
         }
-        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn, dataTag);
+        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn);
     }
 
     @Override
@@ -102,9 +97,7 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
         double MAX_HEALTH = this.getAttribute(Attributes.MAX_HEALTH).getValue();
         float babyHealth = 5.0F;
         if (isBaby() && MAX_HEALTH > babyHealth) {
-            Multimap<Attribute, AttributeModifier> multimap = HashMultimap.create();
-            multimap.put(Attributes.MAX_HEALTH, new AttributeModifier(this.healthReductionUUID, "yeti_health_reduction", babyHealth - MAX_HEALTH, AttributeModifier.Operation.ADDITION));
-            this.getAttributes().addTransientAttributeModifiers(multimap);
+            this.getAttribute(Attributes.MAX_HEALTH).addOrUpdateTransientModifier(new AttributeModifier(HEALTH_REDUCTION_ID, babyHealth - MAX_HEALTH, AttributeModifier.Operation.ADD_VALUE));
             this.setHealth(babyHealth);
         }
     }
@@ -112,7 +105,7 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
     @Override
     protected void ageBoundaryReached() {
         this.stopRiding();
-        this.getAttribute(Attributes.MAX_HEALTH).removeModifier(this.healthReductionUUID);
+        this.getAttribute(Attributes.MAX_HEALTH).removeModifier(HEALTH_REDUCTION_ID);
         this.setHealth((float) this.getAttribute(Attributes.MAX_HEALTH).getValue());
     }
 
@@ -131,11 +124,11 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
     @Nullable
     @Override
     public AgeableMob getBreedOffspring(ServerLevel p_241840_1_, AgeableMob p_241840_2_) {
-        return CNBEntityTypes.LITTLE_GREBE.get().create(p_241840_1_);
+        return CNBEntityTypes.LITTLE_GREBE.get().create(p_241840_1_, EntitySpawnReason.BREEDING);
     }
 
     @Override
-    public boolean causeFallDamage(float distance, float damageMultiplier, DamageSource source) {
+    public boolean causeFallDamage(double distance, float damageMultiplier, DamageSource source) {
         return this.isBaby() && super.causeFallDamage(distance, damageMultiplier, source);
     }
 
@@ -166,13 +159,16 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
     }
 
     @Override
-    public double getPassengersRidingOffset() {
-        return this.getBbHeight() * 0.3D;
+    public boolean isPushedByFluid() {
+        return false;
     }
 
     @Override
-    public boolean isPushedByFluid() {
-        return false;
+    protected Vec3 getPassengerAttachmentPoint(Entity passenger, EntityDimensions dimensions, float scale) {
+        if (passenger instanceof LittleGrebeEntity grebe && grebe.isBaby()) {
+            return new Vec3(0.0D, 5.0D / 16.0D * scale, 0.0D);
+        }
+        return super.getPassengerAttachmentPoint(passenger, dimensions, scale);
     }
 
     private BlockPos getTravelPos() {
@@ -190,14 +186,14 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(TRAVEL_POS, new BlockPos(0, 2, 0));
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(TRAVEL_POS, new BlockPos(0, 2, 0));
     }
 
     @Override
     public boolean isFood(ItemStack stack) {
-        return Ingredient.of(LITTLE_GREBE_FOOD).test(stack);
+        return stack.is(LITTLE_GREBE_FOOD);
     }
 
     @Override
@@ -218,29 +214,34 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
     private static final RawAnimation FALL_ANIMATION = RawAnimation.begin().thenLoop("little_grebe.fall");
     private static final RawAnimation SWIM_ANIMATION = RawAnimation.begin().thenLoop("little_grebe.swim");
     private static final RawAnimation WALK_ANIMATION = RawAnimation.begin().thenLoop("little_grebe.walk");
-    private static final RawAnimation CHICK_WALK_ANIMATION = RawAnimation.begin().thenLoop("little_grebe_chick.fall");
+    private static final RawAnimation CHICK_WALK_ANIMATION = RawAnimation.begin().thenLoop("little_grebe_chick.walk");
 
-    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
+    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationTest<E> event) {
+        double xMovement = this.getX() - this.xo;
+        double zMovement = this.getZ() - this.zo;
+        boolean isMoving = xMovement * xMovement + zMovement * zMovement > 1.0E-4D;
+
         if (!(this.onGround() || this.isInWater() || this.isBaby())) {
-            event.getController().setAnimation(FALL_ANIMATION);
+            event.controller().setAnimation(FALL_ANIMATION);
             return PlayState.CONTINUE;
         } else if (this.isInWater()) {
-            event.getController().setAnimation(SWIM_ANIMATION);
+            event.controller().setAnimation(SWIM_ANIMATION);
             return PlayState.CONTINUE;
-        } else if (!(this.walkAnimation.speed() > -0.15 && this.walkAnimation.speed() < 0.15)) {
+        } else if (isMoving) {
             if (this.isBaby()) {
-                event.getController().setAnimation(CHICK_WALK_ANIMATION);
+                event.controller().setAnimation(CHICK_WALK_ANIMATION);
             } else {
-                event.getController().setAnimation(WALK_ANIMATION);
+                event.controller().setAnimation(WALK_ANIMATION);
             }
             return PlayState.CONTINUE;
         }
+        event.controller().reset();
         return PlayState.STOP;
     }
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar animationData) {
-        animationData.add(new AnimationController<>(this, "controller", 0, this::animationPredicate));
+        animationData.add(new AnimationController<>("controller", 0, this::animationPredicate));
     }
 
     @Override

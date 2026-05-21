@@ -1,6 +1,5 @@
 package com.cgessinger.creaturesandbeasts.items;
 
-import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.block.Block;
@@ -8,7 +7,7 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public class WaterlilyBlockItem extends BlockItem {
     public WaterlilyBlockItem(Block block, Properties properties) {
-        super(block, properties.arch$tab(CreaturesAndBeasts.TAB));
+        super(block, properties);
     }
 
     @Override

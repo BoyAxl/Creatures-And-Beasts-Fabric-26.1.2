@@ -5,9 +5,7 @@ import com.cgessinger.creaturesandbeasts.init.CNBBlocks;
 import com.cgessinger.creaturesandbeasts.init.CNBEntityTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBItems;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.advancements.CriteriaTriggers;
@@ -15,16 +13,17 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.UUIDUtil;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
@@ -34,7 +33,6 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.*;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
-import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -43,33 +41,42 @@ import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.Bucketable;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.player.StackedContents;
+import net.minecraft.world.entity.player.StackedItemContents;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
-import net.minecraft.world.inventory.RecipeHolder;
+import net.minecraft.world.inventory.ContainerListener;
+import net.minecraft.world.inventory.RecipeCraftingHolder;
 import net.minecraft.world.inventory.StackedContentsCompatible;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUtils;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.item.crafting.SingleRecipeInput;
+import net.minecraft.world.item.crafting.SmeltingRecipe;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.GeoAnimatable;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.keyframe.event.SoundKeyframeEvent;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.GeoAnimatable;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.animation.AnimationController;
+import com.geckolib.animation.state.AnimationTest;
+import com.geckolib.animation.RawAnimation;
+import com.geckolib.animation.state.KeyFrameEvent;
+import com.geckolib.animation.object.PlayState;
+import com.geckolib.cache.animation.keyframeevent.SoundKeyframeData;
+import com.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
 import java.util.Optional;
@@ -77,13 +84,13 @@ import java.util.UUID;
 
 import static com.cgessinger.creaturesandbeasts.init.CNBTags.Items.CINDERSHELL_FOOD;
 
-public class CindershellEntity extends Animal implements GeoEntity, Bucketable, ContainerListener, Container, RecipeHolder, StackedContentsCompatible, MenuProvider {
+public class CindershellEntity extends Animal implements GeoEntity, Bucketable, ContainerListener, Container, StackedContentsCompatible, MenuProvider, RecipeCraftingHolder {
     private static final EntityDataAccessor<Boolean> EATING = SynchedEntityData.defineId(CindershellEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> FROM_BUCKET = SynchedEntityData.defineId(CindershellEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> FURNACE = SynchedEntityData.defineId(CindershellEntity.class, EntityDataSerializers.BOOLEAN);
-    private static final EntityDataAccessor<Optional<UUID>> PLAYER = SynchedEntityData.defineId(CindershellEntity.class, EntityDataSerializers.OPTIONAL_UUID);
+    private static final EntityDataAccessor<Optional<EntityReference<LivingEntity>>> PLAYER = SynchedEntityData.defineId(CindershellEntity.class, EntityDataSerializers.OPTIONAL_LIVING_ENTITY_REFERENCE);
 
-    private final UUID healthReductionUUID = UUID.fromString("189faad9-35de-4e15-a598-82d147b996d7");
+    private static final Identifier HEALTH_REDUCTION_ID = Identifier.fromNamespaceAndPath(com.cgessinger.creaturesandbeasts.CreaturesAndBeasts.MOD_ID, "cindershell_health_reduction");
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     protected CinderFurnaceContainer inventory;
     private Player playerInMenu;
@@ -119,7 +126,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
             return 2;
         }
     };
-    private final Object2IntOpenHashMap<ResourceLocation> recipesUsed = new Object2IntOpenHashMap<>();
+    private final Object2IntOpenHashMap<ResourceKey<Recipe<?>>> recipesUsed = new Object2IntOpenHashMap<>();
 
     public CindershellEntity(EntityType<CindershellEntity> type, Level worldIn) {
         super(type, worldIn);
@@ -127,78 +134,62 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     public static AttributeSupplier.Builder createAttributes() {
-        return Mob.createMobAttributes()
+        return Animal.createAnimalAttributes()
                 .add(Attributes.MAX_HEALTH, 80.0D)
                 .add(Attributes.MOVEMENT_SPEED, 0.1D)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 100D);
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(EATING, false);
-        this.entityData.define(FROM_BUCKET, false);
-        this.entityData.define(FURNACE, false);
-        this.entityData.define(PLAYER, Optional.empty());
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(EATING, false);
+        builder.define(FROM_BUCKET, false);
+        builder.define(FURNACE, false);
+        builder.define(PLAYER, Optional.empty());
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag tag) {
-        super.addAdditionalSaveData(tag);
-        tag.putBoolean("FromBucket", this.fromBucket());
-        tag.putBoolean("HasFurnace", this.hasFurnace());
+    public void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putBoolean("FromBucket", this.fromBucket());
+        output.putBoolean("HasFurnace", this.hasFurnace());
         if (this.hasFurnace()) {
-            ListTag listtag = new ListTag();
+            ValueOutput.ValueOutputList list = output.childrenList("Items");
 
-            List<ItemStack> items = this.items;
-            for(int i = 0; i < items.size(); i++) {
-                ItemStack itemstack = items.get(i);
+            for(int i = 0; i < this.items.size(); i++) {
+                ItemStack itemstack = this.items.get(i);
                 if (!itemstack.isEmpty()) {
-                    CompoundTag compoundtag = new CompoundTag();
-                    compoundtag.putByte("Slot", (byte)i);
-                    itemstack.save(compoundtag);
-                    listtag.add(compoundtag);
+                    ValueOutput itemOutput = list.addChild();
+                    itemOutput.putByte("Slot", (byte)i);
+                    itemOutput.store("Item", ItemStack.OPTIONAL_CODEC, itemstack);
                 }
             }
 
-            tag.put("Items", listtag);
-            if (this.entityData.get(PLAYER).isPresent()) {
-                tag.putUUID("Player", this.entityData.get(PLAYER).get());
-            }
-            tag.putInt("CookTime", this.cookingProgress);
-            tag.putInt("CookTimeTotal", this.cookingTotalTime);
+            this.entityData.get(PLAYER).ifPresent(player -> output.store("Player", UUIDUtil.CODEC, player.getUUID()));
+            output.putInt("CookTime", this.cookingProgress);
+            output.putInt("CookTimeTotal", this.cookingTotalTime);
         }
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag tag) {
-        this.setFromBucket(tag.getBoolean("FromBucket"));
-        UUID playerUUID = null;
-        if (tag.contains("Player")) {
-            playerUUID = tag.getUUID("Player");
-        }
-        this.setFurnace(tag.getBoolean("HasFurnace"), playerUUID);
+    public void readAdditionalSaveData(ValueInput input) {
+        this.setFromBucket(input.getBooleanOr("FromBucket", false));
+        UUID playerUUID = input.read("Player", UUIDUtil.CODEC).orElse(null);
+        this.setFurnace(input.getBooleanOr("HasFurnace", false), playerUUID);
         if (this.hasFurnace()) {
-            if (tag.contains("Player") && this.level().getPlayerByUUID(tag.getUUID("Player")) != null) {
-                this.inventory = this.createMenu(this.getId(), this.level().getPlayerByUUID(tag.getUUID("Player")).getInventory(), this.level().getPlayerByUUID(tag.getUUID("Player")));
-            } else  {
-                this.inventory = this.createMenu(this.getId(), new Inventory(null), null);
-            }
-            ListTag listtag = tag.getList("Items", 10);
-
-            for(int i = 0; i < listtag.size(); ++i) {
-                CompoundTag compoundtag = listtag.getCompound(i);
-                int j = compoundtag.getByte("Slot") & 255;
+            for(ValueInput itemInput : input.childrenListOrEmpty("Items")) {
+                int j = itemInput.getByteOr("Slot", (byte)-1) & 255;
                 if (j < this.items.size()) {
-                    this.setItem(j, ItemStack.of(compoundtag));
+                    itemInput.read("Item", ItemStack.OPTIONAL_CODEC).ifPresent(stack -> this.setItem(j, stack));
                 }
             }
 
-            this.cookingProgress = tag.getInt("CookTime");
-            this.cookingTotalTime = tag.getInt("CookTimeTotal");
+            this.cookingProgress = input.getIntOr("CookTime", 0);
+            this.cookingTotalTime = input.getIntOr("CookTimeTotal", 0);
         }
 
-        super.readAdditionalSaveData(tag);
+        super.readAdditionalSaveData(input);
     }
 
     @Override
@@ -206,7 +197,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
         this.goalSelector.addGoal(0, new CindershellFloatGoal(this));
         this.goalSelector.addGoal(1, new PanicGoal(this, 1.25D));
         this.goalSelector.addGoal(2, new CindershellBreedGoal(this, 1.0D));
-        this.goalSelector.addGoal(3, new TemptGoal(this, 1.0D, Ingredient.of(CINDERSHELL_FOOD), false));
+        this.goalSelector.addGoal(3, new TemptGoal(this, 1.0D, Ingredient.of(this.registryAccess().lookupOrThrow(Registries.ITEM).getOrThrow(CINDERSHELL_FOOD)), false));
         this.goalSelector.addGoal(4, new WaterAvoidingRandomStrollGoal(this, 1.0D));
         this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, 6.0F));
         this.goalSelector.addGoal(6, new RandomLookAroundGoal(this));
@@ -241,9 +232,9 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
             this.level().addParticle(ParticleTypes.LARGE_SMOKE, this.getX() + (this.random.nextDouble() * 0.5D - 0.25), this.getY() + 2.5 + (this.random.nextDouble() * 0.1D - 0.05), this.getZ() + (this.random.nextDouble() * 0.5D - 0.25), this.getDeltaMovement().x, 0, this.getDeltaMovement().z);
         }
 
-        if (!this.level().isClientSide && this.hasFurnace()) {
-            if (this.inventory.getSlot(0).hasItem()) {
-                Recipe<?> recipe = this.level().getRecipeManager().getRecipeFor((RecipeType<AbstractCookingRecipe>)this.inventory.getRecipeType(), this, this.level()).orElse(null);
+        if (this.level() instanceof ServerLevel serverLevel && this.hasFurnace()) {
+            if (!this.items.get(0).isEmpty()) {
+                RecipeHolder<SmeltingRecipe> recipe = serverLevel.recipeAccess().getRecipeFor(RecipeType.SMELTING, new SingleRecipeInput(this.items.get(0)), serverLevel).orElse(null);
 
                 if (this.canBurn(recipe, this.inventory.getItems(), 64)) {
                     if (this.random.nextDouble() < 0.1D) {
@@ -252,7 +243,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
                     ++this.cookingProgress;
                     if (this.cookingProgress >= this.cookingTotalTime) {
                         this.cookingProgress = 0;
-                        this.cookingTotalTime = getTotalCookTime(this.level(), this.inventory.getRecipeType(), this);
+                        this.cookingTotalTime = getTotalCookTime(this.level(), RecipeType.SMELTING, this);
                         if (this.smelt(recipe, this.items, 64)) {
                             this.setRecipeUsed(recipe);
                         }
@@ -265,22 +256,8 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     @Override
-    protected void handleNetherPortal() {
-        if (!this.hasFurnace()) {
-            super.handleNetherPortal();
-        }
-    }
-
-    @Nullable
-    @Override
-    public Entity changeDimension(ServerLevel level) {
-        if (this.playerInMenu != null) {
-            this.playerInMenu.closeContainer();
-        }
-        if (this.hasFurnace()) {
-            this.cookingTotalTime = getTotalCookTime(level, this.inventory.getRecipeType(), this);
-        }
-        return super.changeDimension(level);
+    public boolean canUsePortal(boolean allowVehicles) {
+        return !this.hasFurnace() && super.canUsePortal(allowVehicles);
     }
 
     @Override
@@ -288,36 +265,24 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
         return true;
     }
 
-    public static boolean checkCindershellSpawnRules(EntityType<CindershellEntity> entity, LevelAccessor level, MobSpawnType mobSpawnType, BlockPos pos, RandomSource random) {
+    public static boolean checkCindershellSpawnRules(EntityType<CindershellEntity> entity, LevelAccessor level, EntitySpawnReason mobSpawnType, BlockPos pos, RandomSource random) {
         return pos.getY() <= 50;
     }
 
     @Override
-    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, MobSpawnType reason, SpawnGroupData spawnDataIn, CompoundTag dataTag) {
-        if (dataTag != null) {
-            if (dataTag.contains("Age")) {
-                this.setAge(dataTag.getInt("Age"));
-            }
-            if (dataTag.contains("Health")) {
-                this.setHealth(dataTag.getFloat("Health"));
-            }
-            if (dataTag.contains("Name")) {
-                this.setCustomName(Component.nullToEmpty(dataTag.getString("Name")));
-            }
-        }
-
-        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn, dataTag);
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, EntitySpawnReason reason, SpawnGroupData spawnDataIn) {
+        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn);
     }
 
     @Override
     public boolean isFood(ItemStack stack) {
-        return Ingredient.of(CINDERSHELL_FOOD).test(stack);
+        return stack.is(CINDERSHELL_FOOD);
     }
 
     public InteractionResult tryStartEat(Player player, ItemStack stack) {
         if (stack.is(CINDERSHELL_FOOD)) {
             int i = this.getAge();
-            if (!this.level().isClientSide && i == 0 && this.canFallInLove()) {
+            if (!this.level().isClientSide() && i == 0 && this.canFallInLove()) {
                 this.usePlayerItem(player, player.getUsedItemHand(), stack);
                 this.setEating(true);
                 this.setInLove(player);
@@ -330,10 +295,10 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
                 this.playSound(CNBSoundEvents.CINDERSHELL_BABY_EAT.get(), 1.3F, 1F);
                 this.usePlayerItem(player, player.getUsedItemHand(), stack);
                 this.ageUp((int) (-i / 20F * 0.1F), true);
-                return InteractionResult.sidedSuccess(this.level().isClientSide);
+                return this.level().isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
             }
 
-            if (this.level().isClientSide) {
+            if (this.level().isClientSide()) {
                 return InteractionResult.CONSUME;
             }
         }
@@ -352,12 +317,12 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
             player.setItemInHand(hand, bucketWithData);
             Level level = this.level();
 
-            if (!level.isClientSide) {
+            if (!level.isClientSide()) {
                 CriteriaTriggers.FILLED_BUCKET.trigger((ServerPlayer)player, bucketItem);
             }
 
             this.discard();
-            return InteractionResult.sidedSuccess(level.isClientSide);
+            return level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
         } else if (!this.isBaby() && !this.hasFurnace() && item.is(CNBItems.CINDERSHELL_FURNACE.get())) {
             this.setFurnace(true, player.getUUID());
 
@@ -367,19 +332,21 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
                 item.shrink(1);
             }
 
-            this.playSound(SoundEvents.HORSE_SADDLE, 1.0F, (this.random.nextFloat() - this.random.nextFloat()) * 0.2F + 1.0F);
-            return InteractionResult.sidedSuccess(this.level().isClientSide);
+            this.playSound(SoundEvents.HORSE_SADDLE.value(), 1.0F, (this.random.nextFloat() - this.random.nextFloat()) * 0.2F + 1.0F);
+            return this.level().isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
         } else if (this.isFood(item) && !this.getEating()) {
             return this.tryStartEat(player, item);
         } else if (this.hasFurnace() && player.isSecondaryUseActive()) {
-            this.dropEquipment();
-            return InteractionResult.sidedSuccess(this.level().isClientSide);
+            if (this.level() instanceof ServerLevel serverLevel) {
+                this.dropEquipment(serverLevel);
+            }
+            return this.level().isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
         } else if (this.hasFurnace()) {
-            if (!this.level().isClientSide) {
+            if (!this.level().isClientSide()) {
                 player.openMenu(this);
             }
 
-            return InteractionResult.sidedSuccess(this.level().isClientSide);
+            return this.level().isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
         } else {
             return InteractionResult.PASS;
         }
@@ -391,17 +358,21 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     @Override
-    protected void dropEquipment() {
-        super.dropEquipment();
+    protected void dropEquipment(ServerLevel level) {
+        super.dropEquipment(level);
         if (this.hasFurnace()) {
-            this.playSound(SoundEvents.HORSE_SADDLE, 1.0F, (this.random.nextFloat() - this.random.nextFloat()) * 0.2F + 0.8F);
+            this.playSound(SoundEvents.HORSE_SADDLE.value(), 1.0F, (this.random.nextFloat() - this.random.nextFloat()) * 0.2F + 0.8F);
 
-            if (!this.level().isClientSide) {
-                this.spawnAtLocation(CNBBlocks.CINDER_FURNACE.get());
-                for (int i = 0; i < this.inventory.getSize(); i++) {
-                    this.spawnAtLocation(this.inventory.getSlot(i).getItem());
+            if (!this.level().isClientSide()) {
+                this.spawnAtLocation(level, CNBBlocks.CINDER_FURNACE.get());
+                for (ItemStack stack : this.items) {
+                    if (!stack.isEmpty()) {
+                        this.spawnAtLocation(level, stack.copy());
+                    }
                 }
-                ((CinderFurnaceContainer.CinderFurnaceResultSlot)this.inventory.getSlot(1)).checkTakeAchievements(this.inventory.getSlot(1).getItem());
+                if (this.inventory != null) {
+                    ((CinderFurnaceContainer.CinderFurnaceResultSlot)this.inventory.getSlot(1)).checkTakeAchievements(this.inventory.getSlot(1).getItem());
+                }
                 this.clearContent();
             }
 
@@ -437,14 +408,14 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     @Override
     public void setItem(int slot, ItemStack stack) {
         ItemStack itemstack = this.getItem(slot);
-        boolean flag = !stack.isEmpty() && ItemStack.isSameItemSameTags(stack, itemstack);
+        boolean flag = !stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, itemstack);
         this.items.set(slot, stack);
         if (stack.getCount() > this.getMaxStackSize()) {
             stack.setCount(this.getMaxStackSize());
         }
 
         if (slot == 0 && !flag) {
-            this.dataAccess.set(1, getTotalCookTime(this.level(), this.inventory.getRecipeType(), this));
+            this.dataAccess.set(1, getTotalCookTime(this.level(), RecipeType.SMELTING, this));
             this.dataAccess.set(0, 0);
             this.setChanged();
         }
@@ -457,23 +428,31 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
 
     @Override
     public void clearContent() {
-        this.inventory.clearCraftingContent();
+        for (int i = 0; i < this.items.size(); i++) {
+            this.items.set(i, ItemStack.EMPTY);
+        }
+        if (this.inventory != null) {
+            this.inventory.clearCraftingContent();
+        }
     }
 
     public boolean stillValid(Player player) {
         return true;
     }
 
-    public static int getTotalCookTime(Level level, RecipeType<? extends AbstractCookingRecipe> recipeType, CindershellEntity container) {
-        ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, container.level().dimension().location());
+    public static int getTotalCookTime(Level level, RecipeType<SmeltingRecipe> recipeType, CindershellEntity container) {
+        ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, container.level().dimension().identifier());
         float cookTimeMultiplier = dimensionKey.equals(Level.NETHER) ? 1.0F : 1.667F;
-        return (int) (level.getRecipeManager().getRecipeFor(recipeType, container, level).map(AbstractCookingRecipe::getCookingTime).orElse(200) * cookTimeMultiplier);
+        if (level instanceof ServerLevel serverLevel) {
+            return (int) (serverLevel.recipeAccess().getRecipeFor(recipeType, new SingleRecipeInput(container.getItem(0)), serverLevel).map(holder -> holder.value().cookingTime()).orElse(200) * cookTimeMultiplier);
+        }
+        return (int) (200 * cookTimeMultiplier);
     }
 
-    private boolean smelt(@Nullable Recipe<?> recipe, NonNullList<ItemStack> stack, int amount) {
+    private boolean smelt(@Nullable RecipeHolder<? extends AbstractCookingRecipe> recipe, NonNullList<ItemStack> stack, int amount) {
         if (recipe != null && this.canBurn(recipe, stack, amount)) {
             ItemStack itemstack = stack.get(0);
-            ItemStack itemstack1 = ((Recipe<CindershellEntity>) recipe).assemble(this, this.level().registryAccess());
+            ItemStack itemstack1 = recipe.value().assemble(new SingleRecipeInput(itemstack));
             ItemStack itemstack2 = stack.get(1);
             if (itemstack2.isEmpty()) {
                 stack.set(1, itemstack1.copy());
@@ -488,9 +467,9 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
         }
     }
 
-    private boolean canBurn(@Nullable Recipe<?> recipe, NonNullList<ItemStack> items, int maxStack) {
+    private boolean canBurn(@Nullable RecipeHolder<? extends AbstractCookingRecipe> recipe, NonNullList<ItemStack> items, int maxStack) {
         if (!items.get(0).isEmpty() && recipe != null) {
-            ItemStack itemstack = ((Recipe<CindershellEntity>)recipe).assemble(this, this.level().registryAccess());
+            ItemStack itemstack = recipe.value().assemble(new SingleRecipeInput(items.get(0)));
             if (itemstack.isEmpty()) {
                 return false;
             } else {
@@ -511,32 +490,33 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     @Override
-    public void setRecipeUsed(@Nullable Recipe<?> recipe) {
+    public void setRecipeUsed(@Nullable RecipeHolder<?> recipe) {
         if (recipe != null) {
-            ResourceLocation resourcelocation = recipe.getId();
-            this.recipesUsed.addTo(resourcelocation, 1);
+            this.recipesUsed.addTo(recipe.id(), 1);
         }
     }
 
     @org.jetbrains.annotations.Nullable
     @Override
-    public Recipe<?> getRecipeUsed() {
+    public RecipeHolder<?> getRecipeUsed() {
         return null;
     }
 
     public void awardUsedRecipesAndPopExperience(ServerPlayer player) {
-        List<Recipe<?>> list = this.getRecipesToAwardAndPopExperience((ServerLevel) player.level(), player.position());
+        List<RecipeHolder<?>> list = this.getRecipesToAwardAndPopExperience((ServerLevel) player.level(), player.position());
         player.awardRecipes(list);
         this.recipesUsed.clear();
     }
 
-    public List<Recipe<?>> getRecipesToAwardAndPopExperience(ServerLevel level, Vec3 vec3) {
-        List<Recipe<?>> list = Lists.newArrayList();
+    public List<RecipeHolder<?>> getRecipesToAwardAndPopExperience(ServerLevel level, Vec3 vec3) {
+        List<RecipeHolder<?>> list = Lists.newArrayList();
 
-        for(Object2IntMap.Entry<ResourceLocation> entry : this.recipesUsed.object2IntEntrySet()) {
-            level.getRecipeManager().byKey(entry.getKey()).ifPresent((recipe) -> {
+        for(Object2IntMap.Entry<ResourceKey<Recipe<?>>> entry : this.recipesUsed.object2IntEntrySet()) {
+            level.recipeAccess().byKey(entry.getKey()).ifPresent((recipe) -> {
                 list.add(recipe);
-                createExperience(level, vec3, entry.getIntValue(), ((AbstractCookingRecipe)recipe).getExperience());
+                if (recipe.value() instanceof AbstractCookingRecipe cookingRecipe) {
+                    createExperience(level, vec3, entry.getIntValue(), cookingRecipe.experience());
+                }
             });
         }
 
@@ -554,7 +534,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     @Override
-    public void fillStackedContents(StackedContents stackedContents) {
+    public void fillStackedContents(StackedItemContents stackedContents) {
         for(ItemStack itemstack : this.items) {
             stackedContents.accountStack(itemstack);
         }
@@ -572,63 +552,16 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
 
     @Override
     public void saveToBucketTag(ItemStack stack) {
-        CompoundTag tag = stack.getOrCreateTag();
-
-        if (this.hasCustomName()) {
-            stack.setHoverName(this.getCustomName());
-        }
-        if (this.isNoAi()) {
-            tag.putBoolean("NoAI", this.isNoAi());
-        }
-
-        if (this.isSilent()) {
-            tag.putBoolean("Silent", this.isSilent());
-        }
-
-        if (this.isNoGravity()) {
-            tag.putBoolean("NoGravity", this.isNoGravity());
-        }
-
-        if (this.hasGlowingTag()) {
-            tag.putBoolean("Glowing", this.hasGlowingTag());
-        }
-
-        if (this.isInvulnerable()) {
-            tag.putBoolean("Invulnerable", this.isInvulnerable());
-        }
-
-        tag.putFloat("Health", this.getHealth());
-        tag.putInt("Age", this.getAge());
+        Bucketable.saveDefaultDataToBucketTag(this, stack);
+        CustomData.update(DataComponents.BUCKET_ENTITY_DATA, stack, tag -> tag.putInt("Age", this.getAge()));
     }
 
     @Override
     public void loadFromBucketTag(CompoundTag compound) {
-        if (compound.contains("NoAI")) {
-            this.setNoAi(compound.getBoolean("NoAI"));
-        }
-
-        if (compound.contains("Silent")) {
-            this.setSilent(compound.getBoolean("Silent"));
-        }
-
-        if (compound.contains("NoGravity")) {
-            this.setNoGravity(compound.getBoolean("NoGravity"));
-        }
-
-        if (compound.contains("Glowing")) {
-            this.setGlowingTag(compound.getBoolean("Glowing"));
-        }
-
-        if (compound.contains("Invulnerable")) {
-            this.setInvulnerable(compound.getBoolean("Invulnerable"));
-        }
-
-        if (compound.contains("Health", 99)) {
-            this.setHealth(compound.getFloat("Health"));
-        }
+        Bucketable.loadDefaultDataFromBucketTag(this, compound);
 
         if (compound.contains("Age")) {
-            this.setAge(compound.getInt("Age"));
+            this.setAge(compound.getIntOr("Age", -24000));
         } else {
             this.setAge(-24000);
         }
@@ -645,7 +578,12 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     @Override
-    public void containerChanged(Container container) {
+    public void slotChanged(AbstractContainerMenu menu, int slot, ItemStack stack) {
+
+    }
+
+    @Override
+    public void dataChanged(AbstractContainerMenu menu, int dataSlotIndex, int value) {
 
     }
 
@@ -655,9 +593,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
         double MAX_HEALTH = this.getAttribute(Attributes.MAX_HEALTH).getValue();
         float babyHealth = 10.0F;
         if (isBaby() && MAX_HEALTH > babyHealth) {
-            Multimap<Attribute, AttributeModifier> multimap = HashMultimap.create();
-            multimap.put(Attributes.MAX_HEALTH, new AttributeModifier(this.healthReductionUUID, "yeti_health_reduction", babyHealth - MAX_HEALTH, AttributeModifier.Operation.ADDITION));
-            this.getAttributes().addTransientAttributeModifiers(multimap);
+            this.getAttribute(Attributes.MAX_HEALTH).addOrUpdateTransientModifier(new AttributeModifier(HEALTH_REDUCTION_ID, babyHealth - MAX_HEALTH, AttributeModifier.Operation.ADD_VALUE));
             this.setHealth(babyHealth);
         }
     }
@@ -665,7 +601,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     @Override
     protected void ageBoundaryReached() {
         super.ageBoundaryReached();
-        this.getAttribute(Attributes.MAX_HEALTH).removeModifier(this.healthReductionUUID);
+        this.getAttribute(Attributes.MAX_HEALTH).removeModifier(HEALTH_REDUCTION_ID);
         this.setHealth((float) this.getAttribute(Attributes.MAX_HEALTH).getValue());
     }
 
@@ -679,22 +615,8 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     @Override
-    public EntityDimensions getDimensions(Pose pose) {
-        return pose == Pose.SLEEPING ? SLEEPING_DIMENSIONS : super.getDimensions(pose).scale(this.getScale(), this.getHeightScale());
-    }
-
-    private float getHeightScale() {
-        return this.isBaby() ? 0.35F : 1.0F;
-    }
-
-    @Override
-    public float getScale() {
+    public float getAgeScale() {
         return this.isBaby() ? 0.55F : 1.0F;
-    }
-
-    @Override
-    public float getEyeHeight(Pose pose) {
-        return this.getBbHeight() * 0.2F;
     }
 
     public ItemStack getHolding() {
@@ -721,7 +643,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     public void setFurnace(boolean hasFurnace, @Nullable UUID playerUUID) {
         this.entityData.set(FURNACE, hasFurnace);
         if (playerUUID != null) {
-            this.entityData.set(PLAYER, Optional.of(playerUUID));
+            this.entityData.set(PLAYER, Optional.of(EntityReference.of(playerUUID)));
         } else {
             this.entityData.set(PLAYER, Optional.empty());
         }
@@ -730,7 +652,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     @Nullable
     @Override
     public AgeableMob getBreedOffspring(ServerLevel level, AgeableMob mob) {
-        return CNBEntityTypes.CINDERSHELL.get().create(level);
+        return CNBEntityTypes.CINDERSHELL.get().create(level, EntitySpawnReason.BREEDING);
     }
 
     @Override
@@ -739,7 +661,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     @Override
-    public boolean causeFallDamage(float distance, float damageMultiplier, DamageSource source) {
+    public boolean causeFallDamage(double distance, float damageMultiplier, DamageSource source) {
         return false;
     }
 
@@ -788,37 +710,40 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     public static final RawAnimation IDLE_EAT_ANIMATION = RawAnimation.begin().thenLoop("cindershell_idle_eat");
     public static final RawAnimation EAT_ANIMATION = RawAnimation.begin().thenLoop("cindershell_eat");
 
-    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
-        if (!(this.walkAnimation.speed() > -0.05 && this.walkAnimation.speed() < 0.05)) {
-            event.getController().setAnimation(this.isBaby() ? BABY_WALK_ANIMATION : WALK_ANIMATION);
+    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationTest<E> event) {
+        double xMovement = this.getX() - this.xo;
+        double zMovement = this.getZ() - this.zo;
+
+        if (xMovement * xMovement + zMovement * zMovement > 1.0E-6D) {
+            event.controller().setAnimation(this.isBaby() ? BABY_WALK_ANIMATION : WALK_ANIMATION);
         } else if (this.getEating()) {
-            event.getController().setAnimation(IDLE_EAT_ANIMATION);
+            event.controller().setAnimation(IDLE_EAT_ANIMATION);
         } else if (this.isDeadOrDying()) {
-            event.getController().setAnimation(DEATH_ANIMATION);
+            event.controller().setAnimation(DEATH_ANIMATION);
         } else {
-            event.getController().setAnimation(IDLE_ANIMATION);
+            event.controller().setAnimation(IDLE_ANIMATION);
         }
         return PlayState.CONTINUE;
     }
 
-    private <E extends GeoAnimatable> PlayState eatAnimationPredicate(AnimationState<E> event) {
+    private <E extends GeoAnimatable> PlayState eatAnimationPredicate(AnimationTest<E> event) {
         if (this.getEating()) {
-            event.getController().setAnimation(EAT_ANIMATION);
+            event.controller().setAnimation(EAT_ANIMATION);
             return PlayState.CONTINUE;
         }
-        event.getController().forceAnimationReset();
+        event.controller().reset();
         return PlayState.STOP;
     }
 
-    private <E extends GeoAnimatable> void soundListener(SoundKeyframeEvent<E> event) {
+    private <E extends GeoAnimatable> void soundListener(KeyFrameEvent<E, SoundKeyframeData> event) {
         LocalPlayer player = Minecraft.getInstance().player;
         player.playSound(this.isBaby() ? CNBSoundEvents.CINDERSHELL_BABY_EAT.get() : CNBSoundEvents.CINDERSHELL_ADULT_EAT.get(), 0.4F, 1F);
     }
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar animationData) {
-        AnimationController<CindershellEntity> controller = new AnimationController<>(this, "controller", 0, this::animationPredicate);
-        AnimationController<CindershellEntity> eatController = new AnimationController<>(this, "eatController", 0, this::eatAnimationPredicate);
+        AnimationController<CindershellEntity> controller = new AnimationController<>("controller", 0, this::animationPredicate);
+        AnimationController<CindershellEntity> eatController = new AnimationController<>("eatController", 0, this::eatAnimationPredicate);
 
         eatController.setSoundKeyframeHandler(this::soundListener);
 
@@ -832,11 +757,11 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     @Override
-    protected void dropFromLootTable(DamageSource damageSource, boolean hitByPlayer) {
-        super.dropFromLootTable(damageSource, hitByPlayer);
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource damageSource, boolean hitByPlayer) {
+        super.dropCustomDeathLoot(level, damageSource, hitByPlayer);
 
         if (this.getRandom().nextInt(73) < 5) {
-            this.spawnAtLocation(new ItemStack(CNBItems.CINDERSHELL_SHELL_SHARD.get(), this.getRandom().nextInt(3) + 1));
+            this.spawnAtLocation(level, new ItemStack(CNBItems.CINDERSHELL_SHELL_SHARD.get(), this.getRandom().nextInt(3) + 1));
         }
     }
 

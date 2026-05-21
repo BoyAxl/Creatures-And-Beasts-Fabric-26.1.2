@@ -10,6 +10,7 @@ import com.cgessinger.creaturesandbeasts.util.Netable;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
@@ -37,22 +38,26 @@ import net.minecraft.world.entity.ai.goal.*;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.*;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.JukeboxBlockEntity;
+import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.animation.AnimationController;
+import com.geckolib.animation.state.AnimationTest;
+import com.geckolib.animation.RawAnimation;
+import com.geckolib.animation.object.PlayState;
+import com.geckolib.util.GeckoLibUtil;
 
 public class LizardEntity extends Animal implements GeoEntity, Netable {
     private static final EntityDataAccessor<String> TYPE = SynchedEntityData.defineId(LizardEntity.class, EntityDataSerializers.STRING);
@@ -84,43 +89,38 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(TYPE, CNBLizardTypes.DESERT.getId().toString());
-        this.entityData.define(HAS_EGG, false);
-        this.entityData.define(LAYING_EGG, false);
-        this.entityData.define(FROM_NET, false);
-        this.entityData.define(PARTYING, false);
-        this.entityData.define(SAD, false);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(TYPE, CNBLizardTypes.DESERT.getId().toString());
+        builder.define(HAS_EGG, false);
+        builder.define(LAYING_EGG, false);
+        builder.define(FROM_NET, false);
+        builder.define(PARTYING, false);
+        builder.define(SAD, false);
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag compound) {
-        super.addAdditionalSaveData(compound);
-        compound.putString("LizardType", this.getLizardType().getId().toString());
-        compound.putBoolean("Sad", this.getSad());
-        compound.putBoolean("FromNet", this.fromNet());
+    public void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putString("LizardType", this.getLizardType().getId().toString());
+        output.putBoolean("Sad", this.getSad());
+        output.putBoolean("FromNet", this.fromNet());
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag compound) {
-        super.readAdditionalSaveData(compound);
-        LizardType type = LizardType.getById(compound.getString("LizardType"));
+    public void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
+        LizardType type = LizardType.getById(input.getStringOr("LizardType", CNBLizardTypes.DESERT.getId().toString()));
         if (type == null) {
             type = CNBLizardTypes.DESERT;
         }
         this.setLizardType(type);
-        if (compound.contains("Sad")) {
-            setSad(compound.getBoolean("Sad"));
-        }
-
-        if (compound.contains("FromNet")) {
-            setFromNet(compound.getBoolean("FromNet"));
-        }
+        setSad(input.getBooleanOr("Sad", false));
+        setFromNet(input.getBooleanOr("FromNet", false));
     }
 
     public static AttributeSupplier.Builder createAttributes() {
-        return Mob.createMobAttributes()
+        return Animal.createAnimalAttributes()
                 .add(Attributes.MAX_HEALTH, 12.0D)
                 .add(Attributes.MOVEMENT_SPEED, 0.18D);
     }
@@ -131,7 +131,18 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
         this.goalSelector.addGoal(1, new PanicGoal(this, 1.25D));
         this.goalSelector.addGoal(2, new LizardBreedGoal(this, 1.0D));
         this.goalSelector.addGoal(3, new LizardLayEggGoal(this, 1.0D));
-        this.goalSelector.addGoal(4, new WaterAvoidingRandomStrollGoal(this, 1.0D) {
+        this.goalSelector.addGoal(4, new TemptGoal(this, 1.0D, this::isFood, false) {
+            @Override
+            public boolean canUse() {
+                return LizardEntity.this.shouldLookAround() && super.canUse();
+            }
+
+            @Override
+            public boolean canContinueToUse() {
+                return LizardEntity.this.shouldLookAround() && super.canContinueToUse();
+            }
+        });
+        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 1.0D) {
             @Override
             public boolean canUse() {
                 return !((LizardEntity) this.mob).isPartying() && super.canUse();
@@ -142,8 +153,8 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
                 return !((LizardEntity) this.mob).isPartying() && super.canContinueToUse();
             }
         });
-        this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, 6.0F));
-        this.goalSelector.addGoal(6, new RandomLookAroundGoal(this));
+        this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 6.0F));
+        this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
     }
 
 
@@ -169,65 +180,39 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
         }
     }
 
-    public static boolean checkLizardSpawnRules(EntityType<LizardEntity> animal, LevelAccessor worldIn, MobSpawnType reason, BlockPos pos, RandomSource randomIn) {
+    public static boolean checkLizardSpawnRules(EntityType<LizardEntity> animal, LevelAccessor worldIn, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
         return worldIn.getRawBrightness(pos, 0) > 8;
     }
 
     @Override
-    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, MobSpawnType reason, @Nullable SpawnGroupData spawnDataIn, @Nullable CompoundTag dataTag) {
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, EntitySpawnReason reason, @Nullable SpawnGroupData spawnDataIn) {
         Holder<Biome> biome = worldIn.getBiome(this.blockPosition());
 
-        if (reason == MobSpawnType.SPAWN_EGG && dataTag != null && dataTag.contains("LizardType")) {
-            LizardType type = LizardType.getById(dataTag.getString("LizardType"));
-            if (type != null) {
-                this.setLizardType(type);
-            }
-        } else {
-            if (biome.is(Biomes.DESERT) || biome.is(BiomeTags.IS_BADLANDS)) {
-                if (random.nextBoolean()) {
-                    this.setLizardType(CNBLizardTypes.DESERT);
-                } else {
-                    this.setLizardType(CNBLizardTypes.DESERT_2);
-                }
-            } else if (biome.is(BiomeTags.IS_JUNGLE)) {
-                if (random.nextBoolean()) {
-                    this.setLizardType(CNBLizardTypes.JUNGLE);
-                } else {
-                    this.setLizardType(CNBLizardTypes.JUNGLE_2);
-                }
-            }  else if (biome.is(Biomes.MUSHROOM_FIELDS)) {
-                this.setLizardType(CNBLizardTypes.MUSHROOM);
+        if (biome.is(Biomes.DESERT) || biome.is(BiomeTags.IS_BADLANDS)) {
+            if (random.nextBoolean()) {
+                this.setLizardType(CNBLizardTypes.DESERT);
             } else {
-                switch (random.nextInt(4)) {
-                    case 0:
-                        this.setLizardType(CNBLizardTypes.DESERT);
-                        break;
-                    case 1:
-                        this.setLizardType(CNBLizardTypes.DESERT_2);
-                        break;
-                    case 2:
-                        this.setLizardType(CNBLizardTypes.JUNGLE);
-                        break;
-                    case 3:
-                    default:
-                        this.setLizardType(CNBLizardTypes.JUNGLE_2);
-                        break;
-                }
+                this.setLizardType(CNBLizardTypes.DESERT_2);
+            }
+        } else if (biome.is(BiomeTags.IS_JUNGLE)) {
+            if (random.nextBoolean()) {
+                this.setLizardType(CNBLizardTypes.JUNGLE);
+            } else {
+                this.setLizardType(CNBLizardTypes.JUNGLE_2);
+            }
+        }  else if (biome.is(Biomes.MUSHROOM_FIELDS)) {
+            this.setLizardType(CNBLizardTypes.MUSHROOM);
+        } else {
+            switch (random.nextInt(4)) {
+                case 0 -> this.setLizardType(CNBLizardTypes.DESERT);
+                case 1 -> this.setLizardType(CNBLizardTypes.DESERT_2);
+                case 2 -> this.setLizardType(CNBLizardTypes.JUNGLE);
+                default -> this.setLizardType(CNBLizardTypes.JUNGLE_2);
             }
         }
 
-        // 1/10 chance to change variant to sad lizard variant
         this.setSad(this.getRandom().nextInt(10) == 0);
-
-        if (dataTag != null && dataTag.contains("Health")) {
-            this.setHealth(dataTag.getFloat("Health"));
-        }
-
-        if (dataTag != null && dataTag.contains("Name")) {
-            this.setCustomName(Component.nullToEmpty(dataTag.getString("Name")));
-        }
-
-        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn, dataTag);
+        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn);
     }
 
     @Override
@@ -236,13 +221,13 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
     }
 
     @Override
-    protected void actuallyHurt(DamageSource damageSrc, float damageAmount) {
-        super.actuallyHurt(damageSrc, damageAmount);
+    protected void actuallyHurt(ServerLevel level, DamageSource damageSrc, float damageAmount) {
+        super.actuallyHurt(level, damageSrc, damageAmount);
         this.setPartying(false, null);
     }
 
     @Override
-    public boolean canBeLeashed(Player player) {
+    public boolean canBeLeashed() {
         return false;
     }
 
@@ -272,10 +257,10 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
 
     @Override
     public void saveToNetTag(ItemStack stack) {
-        CompoundTag tag = stack.getOrCreateTag();
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
 
         if (this.hasCustomName()) {
-            stack.setHoverName(this.getCustomName());
+            stack.set(DataComponents.CUSTOM_NAME, this.getCustomName());
         }
         if (this.isNoAi()) {
             tag.putBoolean("NoAI", this.isNoAi());
@@ -301,47 +286,48 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
         tag.putBoolean("Sad", this.getSad());
         tag.putBoolean("FromNet", true);
         tag.putString("LizardType", this.getLizardType().getId().toString());
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
     }
 
     @Override
     public void loadFromNetTag(CompoundTag compound) {
         if (compound.contains("NoAI")) {
-            this.setNoAi(compound.getBoolean("NoAI"));
+            this.setNoAi(compound.getBooleanOr("NoAI", false));
         }
 
         if (compound.contains("Silent")) {
-            this.setSilent(compound.getBoolean("Silent"));
+            this.setSilent(compound.getBooleanOr("Silent", false));
         }
 
         if (compound.contains("NoGravity")) {
-            this.setNoGravity(compound.getBoolean("NoGravity"));
+            this.setNoGravity(compound.getBooleanOr("NoGravity", false));
         }
 
         if (compound.contains("Glowing")) {
-            this.setGlowingTag(compound.getBoolean("Glowing"));
+            this.setGlowingTag(compound.getBooleanOr("Glowing", false));
         }
 
         if (compound.contains("Invulnerable")) {
-            this.setInvulnerable(compound.getBoolean("Invulnerable"));
+            this.setInvulnerable(compound.getBooleanOr("Invulnerable", false));
         }
 
-        if (compound.contains("Health", 99)) {
-            this.setHealth(compound.getFloat("Health"));
+        if (compound.contains("Health")) {
+            this.setHealth(compound.getFloatOr("Health", this.getHealth()));
         }
 
         if (compound.contains("Sad")) {
-            this.setSad(compound.getBoolean("Sad"));
+            this.setSad(compound.getBooleanOr("Sad", false));
         }
 
         if (compound.contains("LizardType")) {
-            LizardType type = LizardType.getById(compound.getString("LizardType"));
+            LizardType type = LizardType.getById(compound.getStringOr("LizardType", CNBLizardTypes.DESERT.getId().toString()));
             if (type != null) {
                 this.setLizardType(type);
             }
         }
 
         if (compound.contains("FromNet")) {
-            this.setFromNet(compound.getBoolean("FromNet"));
+            this.setFromNet(compound.getBooleanOr("FromNet", false));
         }
     }
 
@@ -361,7 +347,7 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
     @Nullable
     @Override
     public AgeableMob getBreedOffspring(ServerLevel world, AgeableMob entity) {
-        LizardEntity baby = CNBEntityTypes.LIZARD.get().create(world);
+        LizardEntity baby = CNBEntityTypes.LIZARD.get().create(world, EntitySpawnReason.BREEDING);
         if (baby != null) {
             baby.setLizardType(((LizardEntity) entity).getLizardType());
         }
@@ -449,23 +435,29 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
     private static final RawAnimation WALK_ANIMATION = RawAnimation.begin().thenLoop("lizard_walk");
     private static final RawAnimation DANCE_ANIMATION = RawAnimation.begin().thenLoop("lizard_dance");
 
-    private <E extends GeoEntity> PlayState animationPredicate(AnimationState<E> event) {
+    private PlayState animationPredicate(AnimationTest<LizardEntity> event) {
+        double xMovement = this.getX() - this.xo;
+        double zMovement = this.getZ() - this.zo;
+        boolean isMoving = xMovement * xMovement + zMovement * zMovement > 1.0E-4D;
+
         if (this.entityData.get(LAYING_EGG)) {
-            event.getController().setAnimation(DIG_ANIMATION);
+            event.controller().setAnimation(DIG_ANIMATION);
             return PlayState.CONTINUE;
-        } else if (!(this.walkAnimation.speed() > -0.13 && this.walkAnimation.speed() < 0.13)) {
-            event.getController().setAnimation(WALK_ANIMATION);
+        } else if (isMoving) {
+            event.controller().setAnimation(WALK_ANIMATION);
             return PlayState.CONTINUE;
         } else if (this.isPartying()) {
-            event.getController().setAnimation(DANCE_ANIMATION);
+            event.controller().setAnimation(DANCE_ANIMATION);
             return PlayState.CONTINUE;
         }
+
+        event.controller().reset();
         return PlayState.STOP;
     }
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar animationData) {
-        animationData.add(new AnimationController<>(this, "controller", 0, this::animationPredicate));
+        animationData.add(new AnimationController<LizardEntity>("controller", 0, this::animationPredicate));
     }
 
     @Override
@@ -506,7 +498,7 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
             this.animal.resetLove();
             this.partner.resetLove();
             RandomSource random = this.animal.getRandom();
-            if (this.level.getGameRules().getBoolean(GameRules.RULE_DOMOBLOOT)) {
+            if (this.level.getGameRules().get(GameRules.MOB_DROPS)) {
                 this.level.addFreshEntity(new ExperienceOrb(this.level, this.animal.getX(), this.animal.getY(), this.animal.getZ(), random.nextInt(7) + 1));
             }
 
@@ -543,7 +535,7 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
                     this.lizard.setLayingEgg(true);
                 } else if (this.lizard.layEggCounter > this.adjustedTickDelay(200)) {
                     Level level = this.lizard.level();
-                    level.playSound(null, blockpos, SoundEvents.TURTLE_LAY_EGG, SoundSource.BLOCKS, 0.3F, 0.9F + level.random.nextFloat() * 0.2F);
+                    level.playSound(null, blockpos, SoundEvents.TURTLE_LAY_EGG, SoundSource.BLOCKS, 0.3F, 0.9F + level.getRandom().nextFloat() * 0.2F);
                     level.setBlock(this.blockPos.above(), CNBBlocks.LIZARD_EGGS.get().defaultBlockState().setValue(LizardEggBlock.EGGS, this.lizard.random.nextInt(6) + 1), 3);
 
                     LizardEggBlock lizardEggBlock = (LizardEggBlock) level.getBlockState(this.blockPos.above()).getBlock();

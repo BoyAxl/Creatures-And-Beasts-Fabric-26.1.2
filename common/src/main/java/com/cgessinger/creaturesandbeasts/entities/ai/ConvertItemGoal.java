@@ -2,9 +2,11 @@ package com.cgessinger.creaturesandbeasts.entities.ai;
 
 import com.cgessinger.creaturesandbeasts.entities.SporelingEntity;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
+import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.EnchantmentTags;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
@@ -13,10 +15,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.pathfinder.Path;
 
 import java.util.List;
-import java.util.Map;
 
 public class ConvertItemGoal extends Goal {
     protected Path path;
@@ -57,9 +59,9 @@ public class ConvertItemGoal extends Goal {
     }
 
     private boolean hasCurse(ItemStack stack) {
-        Map<Enchantment, Integer> map = EnchantmentHelper.getEnchantments(stack);
-        for (Map.Entry<Enchantment, Integer> entry : map.entrySet()) {
-            if (entry.getKey().isCurse()) {
+        ItemEnchantments enchantments = EnchantmentHelper.getEnchantmentsForCrafting(stack);
+        for (Holder<Enchantment> enchantment : enchantments.keySet()) {
+            if (enchantment.is(EnchantmentTags.CURSE)) {
                 return true;
             }
         }
@@ -89,30 +91,36 @@ public class ConvertItemGoal extends Goal {
     public void convertItem() {
         entityIn.setInspecting(false);
 
+        if (!(entityIn.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
         if (entityIn.getHolding().is(Items.DIRT)) {
-            entityIn.spawnAtLocation(new ItemStack(Items.MYCELIUM, 1));
+            entityIn.spawnAtLocation(serverLevel, new ItemStack(Items.MYCELIUM, 1));
         } else {
             ItemStack returnItem = entityIn.getHolding().copy();
 
-            Map<Enchantment, Integer> map = EnchantmentHelper.getEnchantments(returnItem);
-            for (Map.Entry<Enchantment, Integer> entry : map.entrySet()) {
-                if (entry.getKey().isCurse()) {
-                    map.remove(entry.getKey(), entry.getValue());
+            ItemEnchantments enchantments = EnchantmentHelper.getEnchantmentsForCrafting(returnItem);
+            Holder<Enchantment> curse = null;
+            for (Holder<Enchantment> enchantment : enchantments.keySet()) {
+                if (enchantment.is(EnchantmentTags.CURSE)) {
+                    curse = enchantment;
                     if (returnItem.isDamageableItem()) {
                         float percent = entityIn.getRandom().nextFloat() * 0.5F;
                         int damage = (int) (percent * returnItem.getMaxDamage() + returnItem.getDamageValue());
                         int setDamage = Math.min(damage, (int) (returnItem.getMaxDamage() * 0.9F));
                         returnItem.setDamageValue(Math.max(returnItem.getDamageValue(), setDamage));
                     }
-                    EnchantmentHelper.setEnchantments(map, returnItem);
                     break;
                 }
             }
-
-            entityIn.spawnAtLocation(returnItem);
-            if (entityIn.level() instanceof ServerLevel serverLevel) {
-                ExperienceOrb.award(serverLevel, entityIn.position(), entityIn.getRandom().nextInt(16) + 1);
+            if (curse != null) {
+                Holder<Enchantment> curseToRemove = curse;
+                EnchantmentHelper.updateEnchantments(returnItem, mutable -> mutable.removeIf(enchantment -> enchantment.equals(curseToRemove)));
             }
+
+            entityIn.spawnAtLocation(serverLevel, returnItem);
+            ExperienceOrb.award(serverLevel, entityIn.position(), entityIn.getRandom().nextInt(16) + 1);
         }
 
         entityIn.setHolding(ItemStack.EMPTY);
@@ -143,7 +151,7 @@ public class ConvertItemGoal extends Goal {
 
                     } else if (convertTime % 3 == 0) {
                         entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, itemInstance.position());
-                        entityIn.level().addParticle(new ItemParticleOption(ParticleTypes.ITEM, itemInstance.getItem()), entityIn.getRandomX(0.5F) + entityIn.getLookAngle().x / 2.0D, entityIn.getRandomY(), entityIn.getRandomZ(0.5F) + entityIn.getLookAngle().z / 2.0D, 4D, 0D, 0D);
+                        entityIn.level().addParticle(new ItemParticleOption(ParticleTypes.ITEM, itemInstance.getItem().getItem()), entityIn.getRandomX(0.5F) + entityIn.getLookAngle().x / 2.0D, entityIn.getRandomY(), entityIn.getRandomZ(0.5F) + entityIn.getLookAngle().z / 2.0D, 4D, 0D, 0D);
                     }
                 }
 

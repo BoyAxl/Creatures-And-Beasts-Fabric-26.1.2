@@ -2,33 +2,24 @@ package com.cgessinger.creaturesandbeasts.client.entity.render;
 
 import com.cgessinger.creaturesandbeasts.client.entity.model.LizardModel;
 import com.cgessinger.creaturesandbeasts.entities.LizardEntity;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.geckolib.renderer.GeoEntityRenderer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.resources.ResourceLocation;
-import software.bernie.geckolib.cache.object.BakedGeoModel;
-import software.bernie.geckolib.renderer.GeoEntityRenderer;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.resources.Identifier;
 
 @Environment(EnvType.CLIENT)
-public class LizardRenderer extends GeoEntityRenderer<LizardEntity> {
+public class LizardRenderer extends GeoEntityRenderer<LizardEntity, LivingEntityRenderState> {
     public LizardRenderer(EntityRendererProvider.Context context) {
         super(context, new LizardModel());
         this.shadowRadius = 0.3F;
     }
 
     @Override
-    public RenderType getRenderType(LizardEntity animatable, ResourceLocation texture, MultiBufferSource bufferSource, float partialTick) {
-        return RenderType.entityCutoutNoCull(texture);
-    }
-
-    @Override
-    public void preRender(PoseStack poseStack, LizardEntity animatable, BakedGeoModel model, MultiBufferSource bufferSource, VertexConsumer buffer, boolean isReRender, float partialTick, int packedLight, int packedOverlay, float red, float green, float blue, float alpha) {
-        float scale = animatable.isBaby() ? 0.4F : 0.8F;
-        poseStack.scale(scale, scale, scale);
-        super.preRender(poseStack, animatable, model, bufferSource, buffer, isReRender, partialTick, packedLight, packedOverlay, red, green, blue, alpha);
+    public RenderType getRenderType(LivingEntityRenderState renderState, Identifier texture) {
+        return RenderTypes.entityCutout(texture);
     }
 }

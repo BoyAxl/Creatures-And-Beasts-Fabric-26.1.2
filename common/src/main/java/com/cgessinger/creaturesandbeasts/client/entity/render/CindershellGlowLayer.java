@@ -2,35 +2,53 @@ package com.cgessinger.creaturesandbeasts.client.entity.render;
 
 import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.entities.CindershellEntity;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.geckolib.constant.DataTickets;
+import com.geckolib.constant.dataticket.DataTicket;
+import com.geckolib.renderer.base.GeoRenderer;
+import com.geckolib.renderer.base.RenderPassInfo;
+import com.geckolib.renderer.layer.GeoRenderLayer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.entity.LivingEntityRenderer;
-import net.minecraft.resources.ResourceLocation;
-import software.bernie.geckolib.cache.object.BakedGeoModel;
-import software.bernie.geckolib.renderer.GeoEntityRenderer;
-import software.bernie.geckolib.renderer.layer.GeoRenderLayer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.LightCoordsUtil;
 
 @Environment(EnvType.CLIENT)
-public class CindershellGlowLayer extends GeoRenderLayer<CindershellEntity> {
-    private static final ResourceLocation GLOW_LAYER = CreaturesAndBeasts.id("textures/entity/cindershell/cindershell_glow.png");
-    private static final ResourceLocation CINDERSHELL_MODEL = CreaturesAndBeasts.id("geo/entity/cindershell/cindershell.geo.json");
-    private static final ResourceLocation CINDERSHELL_FURNACE_MODEL = CreaturesAndBeasts.id("geo/entity/cindershell/cindershell_furnace.geo.json");
+public class CindershellGlowLayer extends GeoRenderLayer<CindershellEntity, Void, LivingEntityRenderState> {
+    private static final DataTicket<Boolean> SHOULD_GLOW = DataTickets.create("cnb_cindershell_should_glow", Boolean.class);
+    private static final Identifier GLOW_TEXTURE = CreaturesAndBeasts.id("textures/entity/cindershell/cindershell_glow.png");
+    private static final int GLOW_COLOR = 0xFFFFFFFF;
 
-    public CindershellGlowLayer(GeoEntityRenderer<CindershellEntity> entityRendererIn) {
-        super(entityRendererIn);
+    public CindershellGlowLayer(GeoRenderer<CindershellEntity, Void, LivingEntityRenderState> entityRenderer) {
+        super(entityRenderer);
     }
 
     @Override
-    public void render(PoseStack poseStack, CindershellEntity animatable, BakedGeoModel bakedModel, RenderType renderType, MultiBufferSource bufferSource, VertexConsumer buffer, float partialTick, int packedLight, int packedOverlay) {
-        if (!animatable.isBaby()) {
-            renderType = RenderType.eyes(GLOW_LAYER);
-            poseStack.pushPose();
-            this.getRenderer().reRender(this.getGeoModel().getBakedModel(animatable.hasFurnace() ? CINDERSHELL_FURNACE_MODEL : CINDERSHELL_MODEL), poseStack, bufferSource, animatable, renderType, bufferSource.getBuffer(renderType), partialTick, packedLight, LivingEntityRenderer.getOverlayCoords(animatable, 0.0F), 1f, 1f, 1f, 1f);
-            poseStack.popPose();
+    public void addRenderData(CindershellEntity animatable, Void relatedObject, LivingEntityRenderState renderState, float partialTick) {
+        renderState.addGeckolibData(SHOULD_GLOW, !animatable.isBaby());
+    }
+
+    @Override
+    public void submitRenderTask(RenderPassInfo<LivingEntityRenderState> renderInfo, SubmitNodeCollector submitNodeCollector) {
+        if (!renderInfo.willRender() || !renderInfo.getOrDefaultGeckolibData(SHOULD_GLOW, false)) {
+            return;
         }
+
+        int previousColor = renderInfo.renderColor();
+        int previousLight = renderInfo.packedLight();
+        int previousOverlay = renderInfo.packedOverlay();
+
+        renderInfo.renderState().addGeckolibData(DataTickets.RENDER_COLOR, GLOW_COLOR);
+        renderInfo.renderState().addGeckolibData(DataTickets.PACKED_LIGHT, LightCoordsUtil.FULL_BRIGHT);
+        renderInfo.renderState().addGeckolibData(DataTickets.PACKED_OVERLAY, OverlayTexture.NO_OVERLAY);
+
+        getRenderer().submitRenderTasks(renderInfo, submitNodeCollector.order(1), RenderTypes.entityTranslucentEmissive(GLOW_TEXTURE));
+
+        renderInfo.renderState().addGeckolibData(DataTickets.RENDER_COLOR, previousColor);
+        renderInfo.renderState().addGeckolibData(DataTickets.PACKED_LIGHT, previousLight);
+        renderInfo.renderState().addGeckolibData(DataTickets.PACKED_OVERLAY, previousOverlay);
     }
 }

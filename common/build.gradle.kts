@@ -1,5 +1,5 @@
 architectury {
-    common("fabric", "forge")
+    common("fabric")
 }
 
 loom {
@@ -15,8 +15,7 @@ dependencies {
     // Do NOT use other classes from fabric loader
     modImplementation("net.fabricmc:fabric-loader:${rootProject.property("fabric_loader_version")}")
 
-    modImplementation("software.bernie.geckolib:geckolib-fabric-${rootProject.property("minecraft_version")}:${rootProject.property("geckolib_version")}")
-    implementation("com.eliotlash.mclib:mclib:20")
+    modImplementation("maven.modrinth:geckolib:${rootProject.property("geckolib_version")}")
 
     modImplementation("dev.architectury:architectury:${rootProject.property("architectury_version")}")
 }

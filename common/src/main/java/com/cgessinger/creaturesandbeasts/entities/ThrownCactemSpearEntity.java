@@ -2,23 +2,25 @@ package com.cgessinger.creaturesandbeasts.entities;
 
 import com.cgessinger.creaturesandbeasts.init.CNBEntityTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBItems;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -26,7 +28,6 @@ import org.jetbrains.annotations.Nullable;
 public class ThrownCactemSpearEntity extends AbstractArrow {
     private static final EntityDataAccessor<Byte> ID_LOYALTY = SynchedEntityData.defineId(ThrownCactemSpearEntity.class, EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<Boolean> IS_FOIL = SynchedEntityData.defineId(ThrownCactemSpearEntity.class, EntityDataSerializers.BOOLEAN);
-    private static final EntityDataAccessor<ItemStack> SPEAR = SynchedEntityData.defineId(ThrownCactemSpearEntity.class, EntityDataSerializers.ITEM_STACK);
     private boolean dealtDamage;
     public int clientSideReturnSpearTickCount;
 
@@ -35,37 +36,30 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
     }
 
     public ThrownCactemSpearEntity(Level level, LivingEntity entity, ItemStack itemStack) {
-        super(CNBEntityTypes.THROWN_CACTEM_SPEAR.get(), entity, level);
+        super(CNBEntityTypes.THROWN_CACTEM_SPEAR.get(), entity, level, itemStack.copy(), null);
         this.entityData.set(IS_FOIL, itemStack.hasFoil());
-        this.entityData.set(ID_LOYALTY, (byte)EnchantmentHelper.getLoyalty(itemStack));
-        this.entityData.set(SPEAR, itemStack);
+        this.entityData.set(ID_LOYALTY, this.getLoyaltyFromItem(itemStack));
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(ID_LOYALTY, (byte) 0);
-        this.entityData.define(IS_FOIL, false);
-        this.entityData.define(SPEAR, new ItemStack(CNBItems.CACTEM_SPEAR.get()));
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(ID_LOYALTY, (byte) 0);
+        builder.define(IS_FOIL, false);
     }
 
 
     @Override
-    public void readAdditionalSaveData(CompoundTag tag) {
-        super.readAdditionalSaveData(tag);
-        if (tag.contains("CactemSpear", 10)) {
-            this.entityData.set(SPEAR, ItemStack.of(tag.getCompound("CactemSpear")));
-        }
-
-        this.dealtDamage = tag.getBoolean("DealtDamage");
-        this.entityData.set(ID_LOYALTY, (byte)EnchantmentHelper.getLoyalty(this.getSpear()));
+    protected void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
+        this.dealtDamage = input.getBooleanOr("DealtDamage", false);
+        this.entityData.set(ID_LOYALTY, this.getLoyaltyFromItem(this.getSpear()));
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag tag) {
-        super.addAdditionalSaveData(tag);
-        tag.put("CactemSpear", this.getSpear().save(new CompoundTag()));
-        tag.putBoolean("DealtDamage", this.dealtDamage);
+    protected void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putBoolean("DealtDamage", this.dealtDamage);
     }
 
     @Override
@@ -78,8 +72,8 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
         int i = this.entityData.get(ID_LOYALTY);
         if (i > 0 && (this.dealtDamage || this.isNoPhysics()) && entity != null) {
             if (!this.isAcceptibleReturnOwner()) {
-                if (!this.level().isClientSide && this.pickup == AbstractArrow.Pickup.ALLOWED) {
-                    this.spawnAtLocation(this.getPickupItem(), 0.1F);
+                if (this.level() instanceof ServerLevel serverLevel && this.pickup == AbstractArrow.Pickup.ALLOWED) {
+                    this.spawnAtLocation(serverLevel, this.getPickupItem(), 0.1F);
                 }
 
                 this.discard();
@@ -87,9 +81,6 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
                 this.setNoPhysics(true);
                 Vec3 vec3 = entity.getEyePosition().subtract(this.position());
                 this.setPosRaw(this.getX(), this.getY() + vec3.y * 0.015D * (double)i, this.getZ());
-                if (this.level().isClientSide) {
-                    this.yOld = this.getY();
-                }
 
                 double d0 = 0.05D * (double)i;
                 this.setDeltaMovement(this.getDeltaMovement().scale(0.95D).add(vec3.normalize().scale(d0)));
@@ -108,12 +99,22 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
         return this.getSpear().copy();
     }
 
+    @Override
+    protected ItemStack getDefaultPickupItem() {
+        return new ItemStack(CNBItems.CACTEM_SPEAR.get());
+    }
+
+    @Override
+    public ItemStack getWeaponItem() {
+        return this.getPickupItemStackOrigin();
+    }
+
     public boolean isFoil() {
         return this.entityData.get(IS_FOIL);
     }
 
     public ItemStack getSpear() {
-        return this.entityData.get(SPEAR);
+        return this.getPickupItemStackOrigin();
     }
 
     @Nullable
@@ -134,40 +135,24 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
     protected void onHitEntity(EntityHitResult hitResult) {
         Entity hitEntity = hitResult.getEntity();
         float f = 5.0F;
-        float bonusDamage = 0;
-        if (hitEntity instanceof LivingEntity livingentity) {
-            bonusDamage = EnchantmentHelper.getDamageBonus(this.getSpear(), livingentity.getMobType());
-            f += bonusDamage;
-        }
-
         Entity projectileThrower = this.getOwner();
-        DamageSource damagesource = this.damageSources().thrown(this, (projectileThrower == null ? this : projectileThrower));
+        DamageSource damagesource = this.damageSources().trident(this, (projectileThrower == null ? this : projectileThrower));
+        if (this.level() instanceof ServerLevel serverLevel) {
+            f = EnchantmentHelper.modifyDamage(serverLevel, this.getWeaponItem(), hitEntity, damagesource, f);
+        }
         this.dealtDamage = true;
         SoundEvent soundevent = SoundEvents.TRIDENT_HIT;
-        if (hitEntity.hurt(damagesource, f)) {
+        if (hitEntity.hurtOrSimulate(damagesource, f)) {
             if (hitEntity.getType() == EntityType.ENDERMAN) {
                 return;
             }
 
+            if (this.level() instanceof ServerLevel serverLevel) {
+                EnchantmentHelper.doPostAttackEffectsWithItemSourceOnBreak(serverLevel, hitEntity, damagesource, this.getWeaponItem(), item -> this.kill(serverLevel));
+            }
+
             if (hitEntity instanceof LivingEntity hitLivingEntity) {
-                if (projectileThrower instanceof LivingEntity) {
-                    EnchantmentHelper.doPostHurtEffects(hitLivingEntity, projectileThrower);
-                    EnchantmentHelper.doPostDamageEffects((LivingEntity)projectileThrower, hitLivingEntity);
-                }
-                int fireAspectLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.FIRE_ASPECT, this.getSpear());
-                if (fireAspectLevel > 0) {
-                    hitEntity.setSecondsOnFire(fireAspectLevel * 4);
-                }
-
-                double knockback = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.KNOCKBACK, this.getSpear());
-
-                if (knockback > 0) {
-                    Vec3 vec3 = this.getDeltaMovement().multiply(1.0D, 0.0D, 1.0D).normalize().scale(knockback * 0.6D);
-                    if (vec3.lengthSqr() > 0.0D) {
-                        hitEntity.push(vec3.x, 0.1D, vec3.z);
-                    }
-                }
-
+                this.doKnockback(hitLivingEntity, damagesource);
                 this.doPostHurtEffects(hitLivingEntity);
             }
         }
@@ -176,6 +161,13 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
         float f1 = 1.0F;
 
         this.playSound(soundevent, f1, 1.0F);
+    }
+
+    private byte getLoyaltyFromItem(ItemStack stack) {
+        if (this.level() instanceof ServerLevel serverLevel) {
+            return (byte) Mth.clamp(EnchantmentHelper.getTridentReturnToOwnerAcceleration(serverLevel, stack, this), 0, 127);
+        }
+        return 0;
     }
 
     @Override

@@ -1,9 +1,6 @@
 {
     "schemaVersion": 1,
-    "id": "creaturesandbeasts",
-    "provides": [
-        "cnb"
-    ],
+    "id": "cnb",
     "version": "${mod_version}",
     "name": "Creatures and Beasts",
     "description": "Creatures and Beasts is a vanilla-style creature mod which fills each biome with new mobs, from the plains of the overworld to the void of the end!",
@@ -39,7 +36,7 @@
         "fabricloader": ">=${fabric_loader_version}",
         "fabric-api": ">=${fabric_api_version}",
         "minecraft": "${minecraft_version}",
-        "architectury": ">=${architectury_version}",
+        "java": ">=25",
         "geckolib": ">=${geckolib_version}"
     },
     "accessWidener": "creaturesandbeasts.accesswidener"

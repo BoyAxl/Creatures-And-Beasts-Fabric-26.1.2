@@ -1,6 +1,0 @@
-{
-  "parent": "item/handheld",
-  "textures": {
-    "layer0": "creaturesandbeasts:item/cinder_sword_2"
-  }
-}

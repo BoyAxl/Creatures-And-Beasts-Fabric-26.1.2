@@ -1,18 +1,17 @@
 package com.cgessinger.creaturesandbeasts.entities;
 
+import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.init.CNBEntityTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.particle.ParticleEngine;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
@@ -23,7 +22,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
-import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -38,23 +36,23 @@ import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import org.jetbrains.annotations.Nullable;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.GeoAnimatable;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.keyframe.event.ParticleKeyframeEvent;
-import software.bernie.geckolib.core.keyframe.event.SoundKeyframeEvent;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.GeoAnimatable;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.animation.AnimationController;
+import com.geckolib.animation.state.AnimationTest;
+import com.geckolib.animation.RawAnimation;
+import com.geckolib.animation.state.KeyFrameEvent;
+import com.geckolib.animation.object.PlayState;
+import com.geckolib.cache.animation.keyframeevent.ParticleKeyframeData;
+import com.geckolib.cache.animation.keyframeevent.SoundKeyframeData;
+import com.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
-
 public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, NeutralMob {
     public static final EntityDataAccessor<Boolean> ATTACKING = SynchedEntityData.defineId(YetiEntity.class, EntityDataSerializers.BOOLEAN);
     public static final EntityDataAccessor<Boolean> EATING = SynchedEntityData.defineId(YetiEntity.class, EntityDataSerializers.BOOLEAN);
@@ -62,44 +60,44 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     public static final EntityDataAccessor<ItemStack> HELD_ITEM = SynchedEntityData.defineId(YetiEntity.class, EntityDataSerializers.ITEM_STACK);
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
-    private final UUID healthReductionUUID = UUID.fromString("189faad9-35de-4e15-a598-82d147b996d7");
+    private static final Identifier HEALTH_REDUCTION_ID = Identifier.fromNamespaceAndPath(CreaturesAndBeasts.MOD_ID, "yeti_health_reduction");
     private final float babyHealth = 20.0F;
 
     private static final UniformInt PERSISTENT_ANGER_TIME = TimeUtil.rangeOfSeconds(20, 39);
-    private int remainingPersistentAngerTime;
+    private long persistentAngerEndTime;
     @Nullable
-    private UUID persistentAngerTarget;
+    private EntityReference<LivingEntity> persistentAngerTarget;
 
     private int eatTimer;
     private int attackTimer;
 
     public YetiEntity(EntityType<YetiEntity> type, Level worldIn) {
         super(type, worldIn);
-        this.setTame(false);
+        this.setTame(false, false);
         this.eatTimer = 0;
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(ATTACKING, false);
-        this.entityData.define(EATING, false);
-        this.entityData.define(PASSIVE, false);
-        this.entityData.define(HELD_ITEM, ItemStack.EMPTY);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(ATTACKING, false);
+        builder.define(EATING, false);
+        builder.define(PASSIVE, false);
+        builder.define(HELD_ITEM, ItemStack.EMPTY);
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag compound) {
-        super.addAdditionalSaveData(compound);
-        compound.putBoolean("Passive", this.isPassive());
+    public void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putBoolean("Passive", this.isPassive());
+        this.addPersistentAngerSaveData(output);
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag compound) {
-        super.readAdditionalSaveData(compound);
-        if (compound.contains("Passive")) {
-            this.setPassive(compound.getBoolean("Passive"));
-        }
+    public void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
+        this.setPassive(input.getBooleanOr("Passive", false));
+        this.readPersistentAngerSaveData(this.level(), input);
     }
 
 
@@ -164,34 +162,34 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     }
 
     @Override
-    public boolean canBeLeashed(Player player) {
+    public boolean canBeLeashed() {
         return false;
     }
 
     @Override
-    public int getRemainingPersistentAngerTime() {
-        return this.remainingPersistentAngerTime;
+    public long getPersistentAngerEndTime() {
+        return this.persistentAngerEndTime;
     }
 
     @Override
-    public void setRemainingPersistentAngerTime(int angerTime) {
-        this.remainingPersistentAngerTime = angerTime;
+    public void setPersistentAngerEndTime(long angerEndTime) {
+        this.persistentAngerEndTime = angerEndTime;
     }
 
     @Nullable
     @Override
-    public UUID getPersistentAngerTarget() {
+    public EntityReference<LivingEntity> getPersistentAngerTarget() {
         return this.persistentAngerTarget;
     }
 
     @Override
-    public void setPersistentAngerTarget(@Nullable UUID uuid) {
-        this.persistentAngerTarget = uuid;
+    public void setPersistentAngerTarget(@Nullable EntityReference<LivingEntity> target) {
+        this.persistentAngerTarget = target;
     }
 
     @Override
     public void startPersistentAngerTimer() {
-        this.setRemainingPersistentAngerTime(PERSISTENT_ANGER_TIME.sample(this.random));
+        this.setTimeToRemainAngry(PERSISTENT_ANGER_TIME.sample(this.random));
     }
 
     @Override
@@ -200,12 +198,12 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     }
 
     @Override
-    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, MobSpawnType reason, SpawnGroupData spawnDataIn, CompoundTag dataTag) {
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, EntitySpawnReason reason, SpawnGroupData spawnDataIn) {
         if (spawnDataIn == null) {
             spawnDataIn = new AgeableMobGroupData(1.0F);
         }
 
-        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn, dataTag);
+        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn);
     }
 
     @Override
@@ -213,11 +211,11 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         ItemStack item = player.getItemInHand(hand);
 
         if (!(this.isEating() || this.isAttacking())) {
-            if (!this.level().isClientSide && item.getItem() == Items.MELON_SLICE && !this.isPassive()) {
+            if (!this.level().isClientSide() && item.getItem() == Items.MELON_SLICE && !this.isPassive()) {
                 this.tame(player);
                 return this.startEat(player, item.copy());
             } else if (item.getItem() == Items.SWEET_BERRIES) {
-                if (!this.level().isClientSide && this.getAge() == 0 && this.canFallInLove()) {
+                if (!this.level().isClientSide() && this.getAge() == 0 && this.canFallInLove()) {
                     this.setInLove(player);
                     return this.startEat(player, item.copy());
                 } else if (this.isBaby()) {
@@ -226,7 +224,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
             }
         }
 
-        if (this.level().isClientSide) {
+        if (this.level().isClientSide()) {
             return InteractionResult.CONSUME;
         }
 
@@ -241,9 +239,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         super.setAge(age);
         double MAX_HEALTH = this.getAttribute(Attributes.MAX_HEALTH).getValue();
         if (isBaby() && MAX_HEALTH > this.babyHealth) {
-            Multimap<Attribute, AttributeModifier> multimap = HashMultimap.create();
-            multimap.put(Attributes.MAX_HEALTH, new AttributeModifier(this.healthReductionUUID, "yeti_health_reduction", this.babyHealth - MAX_HEALTH, AttributeModifier.Operation.ADDITION));
-            this.getAttributes().addTransientAttributeModifiers(multimap);
+            this.getAttribute(Attributes.MAX_HEALTH).addOrUpdateTransientModifier(new AttributeModifier(HEALTH_REDUCTION_ID, this.babyHealth - MAX_HEALTH, AttributeModifier.Operation.ADD_VALUE));
             this.setHealth(this.babyHealth);
         }
     }
@@ -255,12 +251,12 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     protected void ageBoundaryReached() {
         super.ageBoundaryReached();
         float percentHealth = this.getHealth() / this.babyHealth;
-        this.getAttribute(Attributes.MAX_HEALTH).removeModifier(this.healthReductionUUID);
+        this.getAttribute(Attributes.MAX_HEALTH).removeModifier(HEALTH_REDUCTION_ID);
         this.setHealth(percentHealth * (float) this.getAttribute(Attributes.MAX_HEALTH).getValue());
         this.setEating(false);
         this.setHolding(ItemStack.EMPTY);
 
-        if (!this.level().isClientSide && this.isPassive() && this.getOwner() != null && this.getOwner() instanceof ServerPlayer player) {
+        if (!this.level().isClientSide() && this.isPassive() && this.getOwner() instanceof ServerPlayer player) {
             this.tame(player);
             this.setPassive(false);
             this.navigation.stop();
@@ -272,7 +268,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     @Nullable
     @Override
     public AgeableMob getBreedOffspring(ServerLevel level, AgeableMob mob) {
-        return CNBEntityTypes.YETI.get().create(level);
+        return CNBEntityTypes.YETI.get().create(level, EntitySpawnReason.BREEDING);
     }
 
     public void setEating(boolean isEating) {
@@ -310,7 +306,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     }
 
     private InteractionResult startEat(Player player, ItemStack stack) {
-        this.setHolding(stack);
+        this.setHolding(stack.copyWithCount(1));
         this.usePlayerItem(player, player.getUsedItemHand(), stack);
         this.setEating(true);
         this.gameEvent(GameEvent.ENTITY_INTERACT, player);
@@ -351,31 +347,34 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         List<LivingEntity> list = this.level().getEntitiesOfClass(LivingEntity.class, this.getBoundingBox().inflate(1.5D, 1.0D, 1.5D));
 
         for (LivingEntity entity : list) {
-            if ((entity instanceof Player && entity.getUUID().equals(this.getOwnerUUID())) || (entity instanceof YetiEntity && Objects.equals(this.getOwnerUUID(), ((YetiEntity) entity).getOwnerUUID()))) {
+            LivingEntity owner = this.getOwner();
+            if ((entity instanceof Player && this.isOwnedBy(entity)) || (entity instanceof YetiEntity yeti && owner != null && yeti.isOwnedBy(owner))) {
                 continue;
             }
-            this.doHurtTarget(entity);
+            if (this.level() instanceof ServerLevel serverLevel) {
+                this.doHurtTarget(serverLevel, entity);
+            }
         }
     }
 
     @Override
-    public boolean hurt(DamageSource source, float amount) {
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
         if (this.isBaby()) {
             List<YetiEntity> list = this.level().getEntitiesOfClass(YetiEntity.class, this.getBoundingBox().inflate(8.0D, 4.0D, 8.0D));
 
             for (YetiEntity yeti : list) {
                 if (!yeti.isBaby() && !yeti.isTame()) {
                     yeti.setPassive(false);
-                    yeti.setOwnerUUID(null);
+                    yeti.setOwnerReference(null);
                 }
             }
         }
 
         if (!this.isTame()) {
             this.setPassive(false);
-            this.setOwnerUUID(null);
+            this.setOwnerReference(null);
         }
-        return super.hurt(source, amount);
+        return super.hurtServer(level, source, amount);
     }
 
     @Override
@@ -422,41 +421,44 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     private static final RawAnimation BABY_WALK_ANIMATION = RawAnimation.begin().thenLoop("yeti_baby_walk");
     private static final RawAnimation ADULT_WALK_ANIMATION = RawAnimation.begin().thenLoop("yeti_adult_walk");
 
-    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
+    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationTest<E> event) {
+        double xMovement = this.getX() - this.xo;
+        double zMovement = this.getZ() - this.zo;
+        boolean isMoving = xMovement * xMovement + zMovement * zMovement > 1.0E-6D;
+
         if (this.isEating()) {
-            event.getController().setAnimation(this.isBaby() ? BABY_EAT_ANIMATION : ADULT_EAT_ANIMATION);
+            event.controller().setAnimation(this.isBaby() ? BABY_EAT_ANIMATION : ADULT_EAT_ANIMATION);
         } else if (this.isAttacking()) {
-            event.getController().setAnimation(ATTACK_ANIMATION);
-        } else if (!(this.walkAnimation.speed() > -0.15 && this.walkAnimation.speed() < 0.15)) {
-            event.getController().setAnimation(this.isBaby() ? BABY_WALK_ANIMATION : ADULT_WALK_ANIMATION);
+            event.controller().setAnimation(ATTACK_ANIMATION);
+        } else if (isMoving) {
+            event.controller().setAnimation(this.isBaby() ? BABY_WALK_ANIMATION : ADULT_WALK_ANIMATION);
         } else {
-            event.getController().forceAnimationReset();
+            event.controller().reset();
             return PlayState.STOP;
         }
 
         return PlayState.CONTINUE;
     }
 
-    private <E extends GeoAnimatable> void soundListener(SoundKeyframeEvent<E> event) {
-        if (event.getKeyframeData().getSound().equals("hit.ground.sound")) {
+    private <E extends GeoAnimatable> void soundListener(KeyFrameEvent<E, SoundKeyframeData> event) {
+        if (event.keyframeData().getSound().equals("hit.ground.sound")) {
             this.playSound(CNBSoundEvents.YETI_HIT.get(), 0.4F, 1.0F);
-        } else if (event.getKeyframeData().getSound().equals("yeti_ambient")) {
+        } else if (event.keyframeData().getSound().equals("yeti_ambient")) {
             this.playSound(CNBSoundEvents.YETI_AMBIENT.get(), 1.0F, 1.0F);
         }
     }
 
-    private <E extends GeoAnimatable> void particleListener(ParticleKeyframeEvent<E> event) {
-        ParticleEngine manager = Minecraft.getInstance().particleEngine;
+    private <E extends GeoAnimatable> void particleListener(KeyFrameEvent<E, ParticleKeyframeData> event) {
         BlockPos pos = this.blockPosition();
 
-        if (event.getKeyframeData().getEffect().equals("hit.ground.particle")) {
+        if (event.keyframeData().getEffect().equals("hit.ground.particle")) {
             for (int x = pos.getX() - 1; x <= pos.getX() + 1; x++) {
                 for (int z = pos.getZ() - 1; z <= pos.getZ() + 1; z++) {
                     BlockPos newPos = new BlockPos(x, pos.getY() - 1, z);
-                    manager.destroy(newPos, this.level().getBlockState(newPos));
+                    this.level().addDestroyBlockEffect(newPos, this.level().getBlockState(newPos));
                 }
             }
-        } else if (event.getKeyframeData().getEffect().equals("eat.particle")) {
+        } else if (event.keyframeData().getEffect().equals("eat.particle")) {
             spawnParticles(ParticleTypes.HAPPY_VILLAGER);
         }
     }
@@ -472,7 +474,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar animationData) {
-        AnimationController<YetiEntity> controller = new AnimationController<>(this, "controller", 0, this::animationPredicate);
+        AnimationController<YetiEntity> controller = new AnimationController<>("controller", 0, this::animationPredicate);
 
         controller.setSoundKeyframeHandler(this::soundListener);
         controller.setParticleKeyframeHandler(this::particleListener);
@@ -534,9 +536,8 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         }
 
         @Override
-        protected void checkAndPerformAttack(LivingEntity entity, double distance) {
-            double d0 = this.getAttackReachSqr(entity);
-            if (distance <= d0 && this.yeti.attackTimer <= 0 && this.ticksUntilNextAttack <= 0) {
+        protected void checkAndPerformAttack(LivingEntity entity) {
+            if (this.canPerformAttack(entity) && this.yeti.attackTimer <= 0) {
                 this.resetAttackCooldown();
             }
         }

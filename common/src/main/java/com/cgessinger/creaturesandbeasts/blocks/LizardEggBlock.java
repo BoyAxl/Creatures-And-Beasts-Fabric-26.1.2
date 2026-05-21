@@ -10,6 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -36,8 +37,8 @@ public class LizardEggBlock extends Block {
     private LizardType parent1;
     private LizardType parent2;
 
-    public LizardEggBlock() {
-        super(BlockBehaviour.Properties.copy(Blocks.TURTLE_EGG).mapColor(MapColor.SAND).strength(0.5F).sound(SoundType.METAL).randomTicks().noOcclusion());
+    public LizardEggBlock(BlockBehaviour.Properties properties) {
+        super(properties);
         this.registerDefaultState(this.defaultBlockState().setValue(EGGS, 1));
         this.parent1 = CNBLizardTypes.DESERT;
         this.parent2 = CNBLizardTypes.JUNGLE;
@@ -53,10 +54,10 @@ public class LizardEggBlock extends Block {
         if (this.canGrow(worldIn)) {
             this.removeOneEgg(worldIn, pos, state);
             worldIn.levelEvent(2001, pos, Block.getId(state));
-            LizardEntity lizard = CNBEntityTypes.LIZARD.get().create(worldIn);
+            LizardEntity lizard = CNBEntityTypes.LIZARD.get().create(worldIn, EntitySpawnReason.TRIGGERED);
             lizard.setAge(-24000);
             lizard.setLizardType(lizard.getRandom().nextBoolean() ? this.parent1 : this.parent2);
-            lizard.moveTo(pos.getX() + 0.3D, pos.getY(), pos.getZ() + 0.3D, 0.0F, 0.0F);
+            lizard.setPos(pos.getX() + 0.3D, pos.getY(), pos.getZ() + 0.3D);
             worldIn.addFreshEntity(lizard);
         }
     }
@@ -73,11 +74,11 @@ public class LizardEggBlock extends Block {
     }
 
     private boolean canGrow(Level worldIn) {
-        float f = worldIn.getTimeOfDay(1.0F);
+        float f = (worldIn.getDefaultClockTime() % 24000L) / 24000.0F;
         if ((double) f < 0.69D && (double) f > 0.65D) {
             return true;
         } else {
-            return worldIn.random.nextInt(200) == 0;
+            return worldIn.getRandom().nextInt(200) == 0;
         }
     }
 

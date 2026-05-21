@@ -41,12 +41,12 @@ public interface Netable {
             entity.playSound(entity.getPickupSound(), 1.0F, 1.0F);
             entity.saveToNetTag(lizardItem);
             player.addItem(lizardItem);
-            itemstack.hurtAndBreak(1, player, (player1) -> { player1.broadcastBreakEvent(hand); });
+            itemstack.hurtAndBreak(1, player, hand);
             spawnParticles(ParticleTypes.HAPPY_VILLAGER, entity);
             Level level = entity.level();
 
             entity.discard();
-            return Optional.of(InteractionResult.sidedSuccess(level.isClientSide));
+            return Optional.of(level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER);
         } else {
             return Optional.empty();
         }

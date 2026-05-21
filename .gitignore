@@ -24,6 +24,7 @@ build
 eclipse
 run
 key.properties
+reference/
 
 # Files from Forge MDK
 logs/

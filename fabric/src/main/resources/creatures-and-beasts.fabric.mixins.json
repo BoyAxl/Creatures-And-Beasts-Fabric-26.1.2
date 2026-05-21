@@ -7,10 +7,7 @@
     "defaultRequire": 1
   },
   "mixins": [
-    "AnvilMenuMixin",
-    "EnchantmentHelperMixin",
-    "FlowerCrownItemMixin",
-    "SporelingBackpackItemMixin"
+    "AnvilMenuMixin"
   ],
   "client": [
   ]

@@ -5,18 +5,16 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.*;
 import net.minecraft.core.particles.SimpleParticleType;
+import net.minecraft.util.RandomSource;
 
-public class CactemHealParticle extends TextureSheetParticle {
-    private final SpriteSet sprites;
-
+public class CactemHealParticle extends SimpleAnimatedParticle {
     public CactemHealParticle(ClientLevel level, double x, double y, double z, double motionX, double motionY, double motionZ, SpriteSet sprites) {
-        super(level, x, y, z);
+        super(level, x, y, z, sprites, 0.0F);
         this.xd = motionX;
         this.yd = motionY;
         this.zd = motionZ;
         this.quadSize *= level.getRandom().nextDouble() * 0.6D + 0.4D;
         this.lifetime = level.getRandom().nextInt(15) + 20;
-        this.sprites = sprites;
         this.setSpriteFromAge(this.sprites);
     }
 
@@ -28,8 +26,8 @@ public class CactemHealParticle extends TextureSheetParticle {
     }
 
     @Override
-    public ParticleRenderType getRenderType() {
-        return ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT;
+    public SingleQuadParticle.Layer getLayer() {
+        return SingleQuadParticle.Layer.TRANSLUCENT;
     }
 
     @Environment(EnvType.CLIENT)
@@ -40,7 +38,7 @@ public class CactemHealParticle extends TextureSheetParticle {
             this.spriteSet = spriteSet;
         }
 
-        public Particle createParticle(SimpleParticleType typeIn, ClientLevel levelIn, double x, double y, double z, double xSpeed, double ySpeed, double zSpeed) {
+        public Particle createParticle(SimpleParticleType typeIn, ClientLevel levelIn, double x, double y, double z, double xSpeed, double ySpeed, double zSpeed, RandomSource random) {
             return new CactemHealParticle(levelIn, x, y, z, xSpeed, ySpeed, zSpeed, this.spriteSet);
         }
     }

@@ -19,7 +19,11 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
     @Shadow private int repairItemCountCost;
 
     public AnvilMenuMixin(@Nullable MenuType<?> type, int containerId, Inventory playerInventory, ContainerLevelAccess access) {
-        super(type, containerId, playerInventory, access);
+        super(type, containerId, playerInventory, access, ItemCombinerMenuSlotDefinition.create()
+                .withSlot(0, 27, 47, stack -> true)
+                .withSlot(1, 76, 47, stack -> true)
+                .withResultSlot(2, 134, 47)
+                .build());
     }
 
     @Inject(method = "createResult", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;isEmpty()Z", ordinal = 2), cancellable = true)

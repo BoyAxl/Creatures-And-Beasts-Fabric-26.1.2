@@ -13,6 +13,7 @@ public class CNBTags {
         public static final TagKey<Item> END_WHALE_FOOD = tag("end_whale_food");
         public static final TagKey<Item> LITTLE_GREBE_FOOD = tag("little_grebe_food");
         public static final TagKey<Item> SPORELING_FOOD = tag("sporeling_food");
+        public static final TagKey<Item> CINDER_TOOL_MATERIALS = tag("cinder_tool_materials");
 
         private static TagKey<Item> tag(String name) {
             return TagKey.create(Registries.ITEM, CreaturesAndBeasts.id(name));

@@ -9,6 +9,7 @@ import com.cgessinger.creaturesandbeasts.init.CNBSporelingTypes;
 import com.cgessinger.creaturesandbeasts.util.SporelingType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -42,16 +43,18 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import org.jetbrains.annotations.Nullable;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.GeoAnimatable;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.GeoAnimatable;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.animation.AnimationController;
+import com.geckolib.animation.state.AnimationTest;
+import com.geckolib.animation.RawAnimation;
+import com.geckolib.animation.object.PlayState;
+import com.geckolib.util.GeckoLibUtil;
 
 import static com.cgessinger.creaturesandbeasts.init.CNBTags.Items.SPORELING_FOOD;
 import static com.cgessinger.creaturesandbeasts.util.SporelingType.SporelingHostility.*;
@@ -66,7 +69,7 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
     private final NearestAttackableTargetGoal<Player> nearestAttackableTargetGoal = new NearestAttackableTargetGoal<>(this, Player.class, true);
     private final HurtByTargetGoal hurtByTargetGoal = new HurtByTargetGoal(this);
     private final WaveGoal waveGoal = new WaveGoal(this, Player.class, 8.0F);
-    private final TemptGoal temptGoal = new SporelingTemptGoal(this, 1.0D, Ingredient.of(SPORELING_FOOD), false);
+    private final TemptGoal temptGoal = new SporelingTemptGoal(this, 1.0D, Ingredient.of(this.registryAccess().lookupOrThrow(Registries.ITEM).getOrThrow(SPORELING_FOOD)), false);
     private final PanicGoal panicGoal = new PanicGoal(this, 1.25D);
     private final ConvertItemGoal convertItemGoal = new ConvertItemGoal(this, 16.0D, 1.3D);
 
@@ -81,24 +84,24 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(TYPE, CNBSporelingTypes.RED_OVERWORLD.getId().toString());
-        this.entityData.define(ATTACKING, false);
-        this.entityData.define(WAVING, false);
-        this.entityData.define(INSPECTING, false);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(TYPE, CNBSporelingTypes.RED_OVERWORLD.getId().toString());
+        builder.define(ATTACKING, false);
+        builder.define(WAVING, false);
+        builder.define(INSPECTING, false);
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag compound) {
-        super.addAdditionalSaveData(compound);
-        compound.putString("SporelingType", this.getSporelingType().getId().toString());
+    public void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putString("SporelingType", this.getSporelingType().getId().toString());
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag compound) {
-        super.readAdditionalSaveData(compound);
-        SporelingType type = SporelingType.getById(compound.getString("SporelingType"));
+    public void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
+        SporelingType type = SporelingType.getById(input.getStringOr("SporelingType", CNBSporelingTypes.RED_OVERWORLD.getId().toString()));
         if (type == null) {
             type = CNBSporelingTypes.RED_OVERWORLD;
         }
@@ -107,7 +110,7 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
     }
 
     public static AttributeSupplier.Builder createAttributes() {
-        return Mob.createMobAttributes()
+        return TamableAnimal.createAnimalAttributes()
                 .add(Attributes.MAX_HEALTH, 16.0D)
                 .add(Attributes.MOVEMENT_SPEED, 0.2D)
                 .add(Attributes.FOLLOW_RANGE, 35.0D)
@@ -117,16 +120,13 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
     @Override
     public void tick() {
         super.tick();
-        if (this.getVehicle() != null) {
-            this.lerpYRot = 0.0F;
-        }
     }
 
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(1, new FloatGoal(this));
         this.goalSelector.addGoal(2, new SitWhenOrderedToGoal(this));
-        this.goalSelector.addGoal(3, new FollowOwnerGoal(this, 1.0D, 10.0F, 2.0F, false));
+        this.goalSelector.addGoal(3, new FollowOwnerGoal(this, 1.0D, 10.0F, 2.0F));
         this.goalSelector.addGoal(4, new WaterAvoidingRandomStrollGoal(this, 1.0D));
         this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, 8.0F));
         this.goalSelector.addGoal(6, new RandomLookAroundGoal(this));
@@ -182,15 +182,37 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
         return super.isNoAi() || this.getVehicle() != null;
     }
 
+    @Nullable
+    public static SporelingEntity getBackpackPassenger(Player player) {
+        for (Entity passenger : player.getPassengers()) {
+            if (passenger instanceof SporelingEntity sporeling) {
+                return sporeling;
+            }
+        }
+
+        return null;
+    }
+
+    public boolean canRideInBackpack(Player player) {
+        return this.isTame()
+                && this.isOwnedBy(player)
+                && player.isSecondaryUseActive()
+                && player.getPassengers().isEmpty()
+                && player.getItemBySlot(EquipmentSlot.CHEST).is(CNBItems.SPORELING_BACKPACK.get());
+    }
+
+    private boolean tryRideInBackpack(Player player) {
+        return this.canRideInBackpack(player) && this.startRiding(player);
+    }
+
     @Override
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         ItemStack itemstack = player.getItemInHand(hand);
-        if (this.level().isClientSide) {
+        if (this.level().isClientSide()) {
             if (this.isTame()) {
                 InteractionResult interactionresult = super.mobInteract(player, hand);
                 if (!interactionresult.consumesAction() && this.isOwnedBy(player)) {
-                    if (player.isSecondaryUseActive() && player.getPassengers().isEmpty() && player.getItemBySlot(EquipmentSlot.CHEST).is(CNBItems.SPORELING_BACKPACK.get())) {
-                        this.startRiding(player);
+                    if (this.tryRideInBackpack(player)) {
                         return InteractionResult.SUCCESS;
                     }
                 }
@@ -212,8 +234,8 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
 
                 InteractionResult interactionresult = super.mobInteract(player, hand);
                 if (!interactionresult.consumesAction() && this.isOwnedBy(player)) {
-                    if (player.isSecondaryUseActive() && player.getPassengers().isEmpty() && player.getItemBySlot(EquipmentSlot.CHEST).is(CNBItems.SPORELING_BACKPACK.get())) {
-                        this.startRiding(player);
+                    if (this.tryRideInBackpack(player)) {
+                        return InteractionResult.SUCCESS;
                     } else {
                         this.setOrderedToSit(!this.isOrderedToSit());
                         this.jumping = false;
@@ -261,11 +283,11 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
     }
 
     @Override
-    protected void actuallyHurt(DamageSource damageSource, float damage) {
+    protected void actuallyHurt(ServerLevel level, DamageSource damageSource, float damage) {
         if (damageSource.is(DamageTypeTags.IS_FIRE) && this.getSporelingType().getHostility() != FRIENDLY) {
             return;
         }
-        super.actuallyHurt(damageSource, damage);
+        super.actuallyHurt(level, damageSource, damage);
     }
 
     @Override
@@ -279,7 +301,7 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
         return this.getSporelingType().getHostility() == FRIENDLY ? MobCategory.CREATURE : MobCategory.MONSTER;
     }
 
-    public static boolean checkSporelingSpawnRules(EntityType<SporelingEntity> entity, LevelAccessor worldIn, MobSpawnType mobSpawnType, BlockPos pos, RandomSource rand) {
+    public static boolean checkSporelingSpawnRules(EntityType<SporelingEntity> entity, LevelAccessor worldIn, EntitySpawnReason mobSpawnType, BlockPos pos, RandomSource rand) {
         if (worldIn.getBiome(pos).is(BiomeTags.IS_NETHER)) {
             return worldIn.getDifficulty() != Difficulty.PEACEFUL;
         } else {
@@ -298,53 +320,52 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
 
     @Nullable
     @Override
-    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, MobSpawnType reason, @Nullable SpawnGroupData spawnDataIn, @Nullable CompoundTag dataTag) {
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor worldIn, DifficultyInstance difficultyIn, EntitySpawnReason reason, @Nullable SpawnGroupData spawnDataIn) {
         Holder<Biome> biome = worldIn.getBiome(this.blockPosition());
 
-        if (reason == MobSpawnType.SPAWN_EGG && dataTag != null && dataTag.contains("EggType")) {
-            String eggType = dataTag.getString("EggType");
-            if (eggType.equals("Nether")) {
-                if (biome.is(Biomes.CRIMSON_FOREST)) {
-                    this.setSporelingType(CNBSporelingTypes.CRIMSON_FUNGUS);
-                } else if (biome.is(Biomes.WARPED_FOREST)) {
-                    this.setSporelingType(CNBSporelingTypes.WARPED_FUNGUS);
-                } else {
-                    if (random.nextBoolean()) {
-                        this.setSporelingType(CNBSporelingTypes.RED_NETHER);
-                    } else {
-                        this.setSporelingType(CNBSporelingTypes.BROWN_NETHER);
-                    }
-                }
+        if (biome.is(Biomes.CRIMSON_FOREST)) {
+            this.setSporelingType(CNBSporelingTypes.CRIMSON_FUNGUS);
+        } else if (biome.is(Biomes.WARPED_FOREST)) {
+            this.setSporelingType(CNBSporelingTypes.WARPED_FUNGUS);
+        } else if (biome.is(BiomeTags.IS_NETHER)) {
+            if (random.nextBoolean()) {
+                this.setSporelingType(CNBSporelingTypes.RED_NETHER);
             } else {
-                if (random.nextBoolean()) {
-                    this.setSporelingType(CNBSporelingTypes.RED_OVERWORLD);
-                } else {
-                    this.setSporelingType(CNBSporelingTypes.BROWN_OVERWORLD);
-                }
+                this.setSporelingType(CNBSporelingTypes.BROWN_NETHER);
             }
         } else {
-            if (biome.is(Biomes.CRIMSON_FOREST)) {
-                this.setSporelingType(CNBSporelingTypes.CRIMSON_FUNGUS);
-            } else if (biome.is(Biomes.WARPED_FOREST)) {
-                this.setSporelingType(CNBSporelingTypes.WARPED_FUNGUS);
-            } else if (biome.is(BiomeTags.IS_NETHER)) {
-                if (random.nextBoolean()) {
-                    this.setSporelingType(CNBSporelingTypes.RED_NETHER);
-                } else {
-                    this.setSporelingType(CNBSporelingTypes.BROWN_NETHER);
-                }
+            if (random.nextBoolean()) {
+                this.setSporelingType(CNBSporelingTypes.RED_OVERWORLD);
             } else {
-                if (random.nextBoolean()) {
-                    this.setSporelingType(CNBSporelingTypes.RED_OVERWORLD);
-                } else {
-                    this.setSporelingType(CNBSporelingTypes.BROWN_OVERWORLD);
-                }
+                this.setSporelingType(CNBSporelingTypes.BROWN_OVERWORLD);
             }
         }
 
         this.reassessGoals();
 
-        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn, dataTag);
+        return super.finalizeSpawn(worldIn, difficultyIn, reason, spawnDataIn);
+    }
+
+    public void setSporelingTypeFromSpawnEgg(ServerLevelAccessor worldIn, boolean netherEgg) {
+        Holder<Biome> biome = worldIn.getBiome(this.blockPosition());
+
+        if (netherEgg) {
+            if (biome.is(Biomes.CRIMSON_FOREST)) {
+                this.setSporelingType(CNBSporelingTypes.CRIMSON_FUNGUS);
+            } else if (biome.is(Biomes.WARPED_FOREST)) {
+                this.setSporelingType(CNBSporelingTypes.WARPED_FUNGUS);
+            } else if (random.nextBoolean()) {
+                this.setSporelingType(CNBSporelingTypes.RED_NETHER);
+            } else {
+                this.setSporelingType(CNBSporelingTypes.BROWN_NETHER);
+            }
+        } else if (random.nextBoolean()) {
+            this.setSporelingType(CNBSporelingTypes.RED_OVERWORLD);
+        } else {
+            this.setSporelingType(CNBSporelingTypes.BROWN_OVERWORLD);
+        }
+
+        this.reassessGoals();
     }
 
     @Nullable
@@ -433,7 +454,6 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
         }
     }
 
-    @Override
     protected boolean shouldDespawnInPeaceful() {
         return this.getSporelingType().getHostility() == SporelingType.SporelingHostility.HOSTILE;
     }
@@ -472,56 +492,63 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
     private static final RawAnimation BACKPACK_AIR_ANIMATION = RawAnimation.begin().thenLoop("sporeling_backpack_air");
     private static final RawAnimation BACKPACK_IDLE_ANIMATION = RawAnimation.begin().thenLoop("sporeling_backpack_idle");
 
-    public <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
-        var currentAnimation = event.getController().getCurrentAnimation();
+    public <E extends GeoAnimatable> PlayState animationPredicate(AnimationTest<E> event) {
+        RawAnimation currentAnimation = event.controller().getCurrentRawAnimation();
+        boolean isSittingAnimation = currentAnimation != null && currentAnimation.getAnimationStages().stream().anyMatch(stage -> stage.animationName().equals("sporeling_sitting"));
+        boolean isStandingAnimation = currentAnimation != null && currentAnimation.getAnimationStages().stream().anyMatch(stage -> stage.animationName().equals("sporeling_stand"));
 
         if (this.isPassenger()) {
+            event.controller().reset();
             return PlayState.STOP;
         }
 
+        double xMovement = this.getX() - this.xo;
+        double zMovement = this.getZ() - this.zo;
+        boolean isMoving = xMovement * xMovement + zMovement * zMovement > 1.0E-6D;
+
         if (this.isInSittingPose()) {
-            event.getController().setAnimation(SIT_ANIMATION);
-        } else if (currentAnimation != null && (currentAnimation.animation().name().equals("sporeling_sitting") || (currentAnimation.animation().name().equals("sporeling_stand") && !event.getController().getAnimationState().equals(AnimationController.State.STOPPED))) && !this.isInSittingPose()) {
-            event.getController().setAnimation(STAND_ANIMATION);
+            event.controller().setAnimation(SIT_ANIMATION);
+        } else if ((isSittingAnimation || (isStandingAnimation && !event.controller().getPlayState().equals(PlayState.STOP))) && !this.isInSittingPose()) {
+            event.controller().setAnimation(STAND_ANIMATION);
         } else if (this.isAttacking()) {
-            event.getController().setAnimation(BITE_ANIMATION);
+            event.controller().setAnimation(BITE_ANIMATION);
         } else if (this.isWaving() && this.getHolding().isEmpty()) {
-            event.getController().setAnimation(WAVE_ANIMATION);
+            event.controller().setAnimation(WAVE_ANIMATION);
         } else if (this.isInspecting()) {
-            event.getController().setAnimation(CONVERT_ANIMATION);
-        } else if (!(this.walkAnimation.speed() > -0.15 && this.walkAnimation.speed() < 0.15)) {
+            event.controller().setAnimation(CONVERT_ANIMATION);
+        } else if (isMoving) {
             if (this.isRunning()) {
-                event.getController().setAnimation(RUN_ANIMATION);
+                event.controller().setAnimation(RUN_ANIMATION);
             } else {
-                event.getController().setAnimation(WALK_ANIMATION);
+                event.controller().setAnimation(WALK_ANIMATION);
             }
         } else {
-            event.getController().setAnimation(IDLE_ANIMATION);
+            event.controller().setAnimation(IDLE_ANIMATION);
         }
 
         return PlayState.CONTINUE;
     }
 
-    public <E extends GeoAnimatable> PlayState backpackAnimationPredicate(AnimationState<E> event) {
+    public <E extends GeoAnimatable> PlayState backpackAnimationPredicate(AnimationTest<E> event) {
         Entity vehicle = this.getVehicle();
 
         if (vehicle != null) {
             if (!vehicle.onGround() && vehicle.fallDistance > 0.1F) {
-                event.getController().setAnimation(BACKPACK_AIR_ANIMATION);
+                event.controller().setAnimation(BACKPACK_AIR_ANIMATION);
             } else {
-                event.getController().setAnimation(BACKPACK_IDLE_ANIMATION);
+                event.controller().setAnimation(BACKPACK_IDLE_ANIMATION);
             }
             return PlayState.CONTINUE;
         }
 
-        event.getController().forceAnimationReset();
+        event.controller().reset();
         return PlayState.STOP;
     }
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar animationData) {
-        animationData.add(new AnimationController<>(this, "controller", 0, this::animationPredicate));
-        animationData.add(new AnimationController<>(this, "backpackController", 6, this::backpackAnimationPredicate));
+        animationData.add(new AnimationController<>("controller", 0, this::animationPredicate));
+        animationData.add(new AnimationController<>("backpackController", 6, this::backpackAnimationPredicate));
     }
 
     @Override
@@ -563,12 +590,13 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
         }
 
         @Override
-        protected void checkAndPerformAttack(LivingEntity entity, double distance) {
-            double d0 = this.getAttackReachSqr(entity);
-            if (distance <= d0 && this.goalOwner.attackTimer <= 0 && this.ticksUntilNextAttack <= 0) {
+        protected void checkAndPerformAttack(LivingEntity entity) {
+            if (this.canPerformAttack(entity) && this.goalOwner.attackTimer <= 0) {
                 this.resetAttackCooldown();
                 this.goalOwner.playSound(CNBSoundEvents.SPORELING_BITE.get(), 1.0F, 1.0F);
-                this.goalOwner.doHurtTarget(entity);
+                if (this.goalOwner.level() instanceof ServerLevel serverLevel) {
+                    this.goalOwner.doHurtTarget(serverLevel, entity);
+                }
             }
         }
 

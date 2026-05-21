@@ -3,7 +3,7 @@ package com.cgessinger.creaturesandbeasts.entities;
 import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -37,30 +37,32 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.GeoAnimatable;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.GeoAnimatable;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.animation.AnimationController;
+import com.geckolib.animation.state.AnimationTest;
+import com.geckolib.animation.RawAnimation;
+import com.geckolib.animation.object.PlayState;
+import com.geckolib.util.GeckoLibUtil;
 
 import java.util.EnumSet;
 
 import static com.cgessinger.creaturesandbeasts.init.CNBTags.Items.END_WHALE_FOOD;
 
-public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddleable, GeoEntity {
+public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEntity {
     private static final EntityDataAccessor<Boolean> SADDLED = SynchedEntityData.defineId(EndWhaleEntity.class, EntityDataSerializers.BOOLEAN);
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
 
     public EndWhaleEntity(EntityType<EndWhaleEntity> entityType, Level level) {
         super(entityType, level);
-        this.setTame(false);
+        this.setTame(false, false);
         this.moveControl = new FlyingMoveControl(this, 2, true);
         this.lookControl = new EndWhaleLookControl(this);
     }
@@ -74,26 +76,26 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
     }
 
     protected void registerGoals() {
-        this.goalSelector.addGoal(0, new EndWhaleTemptGoal(this, 1.25D, Ingredient.of(END_WHALE_FOOD)));
+        this.goalSelector.addGoal(0, new EndWhaleTemptGoal(this, 1.25D, Ingredient.of(this.registryAccess().lookupOrThrow(Registries.ITEM).getOrThrow(END_WHALE_FOOD))));
         this.goalSelector.addGoal(1, new EndWhaleWanderGoal(this));
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(SADDLED, false);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(SADDLED, false);
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag tag) {
-        super.addAdditionalSaveData(tag);
-        tag.putBoolean("Saddled", this.isSaddled());
+    public void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putBoolean("Saddled", this.isSaddled());
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag tag) {
-        super.readAdditionalSaveData(tag);
-        boolean isSaddled = tag.getBoolean("Saddled");
+    public void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
+        boolean isSaddled = input.getBooleanOr("Saddled", false);
         if (isSaddled) {
             this.equipSaddle(SoundSource.PLAYERS);
         }
@@ -114,30 +116,29 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
         return 30;
     }
 
-    @Override
     public boolean isSaddleable() {
         return this.isTame();
     }
 
-    @Override
     public void equipSaddle(@Nullable SoundSource soundSource) {
         this.entityData.set(SADDLED, true);
-        this.playSound(SoundEvents.HORSE_SADDLE, 1.0F, 1.0F);
+        this.playSound(SoundEvents.HORSE_SADDLE.value(), 1.0F, 1.0F);
     }
 
     public void removeSaddle() {
         this.entityData.set(SADDLED, false);
-        this.spawnAtLocation(Items.SADDLE);
-        this.playSound(SoundEvents.HORSE_SADDLE, 0.8F, 1.0F);
+        if (this.level() instanceof ServerLevel serverLevel) {
+            this.spawnAtLocation(serverLevel, Items.SADDLE);
+        }
+        this.playSound(SoundEvents.HORSE_SADDLE.value(), 0.8F, 1.0F);
     }
 
-    @Override
     public boolean isSaddled() {
         return this.entityData.get(SADDLED);
     }
 
     private void mountWhale(Player player) {
-        if (!this.level().isClientSide) {
+        if (!this.level().isClientSide()) {
             player.setYRot(this.getYRot());
             player.setXRot(this.getXRot());
             player.startRiding(this);
@@ -147,7 +148,7 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
     @Override
     protected void positionRider(Entity rider, MoveFunction callback) {
         if (this.hasPassenger(rider)) {
-            double verticalOffset = this.getPassengersRidingOffset() + rider.getMyRidingOffset();
+            double verticalOffset = this.getWhaleRidingOffset();
             float whaleRoll = this.getWhaleRoll(rider) * Mth.PI/180;
             float whalePitch = this.getWhalePitch(rider) * Mth.PI/180;
             callback.accept(rider, this.getX() + Mth.cos(this.getYRot() * Mth.PI/180) * verticalOffset * Mth.sin(whaleRoll) + Mth.sin(this.getYRot() * Mth.PI/180) * verticalOffset * Mth.sin(whalePitch),
@@ -167,9 +168,8 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
         rider.setYHeadRot(rider.getYRot());
     }
 
-    @Override
-    public double getPassengersRidingOffset() {
-        return (double)this.getDimensions(this.getPose()).height * 0.70D;
+    private double getWhaleRidingOffset() {
+        return (double)this.getDimensions(this.getPose()).height() * 0.70D;
     }
 
     private float getWhaleRoll(Entity rider) {
@@ -186,7 +186,6 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
         return Mth.wrapDegrees(whaleRotY - riderRotY);
     }
 
-    @Override
     public boolean isControlledByLocalInstance() {
         return this.getControllingPassenger() instanceof LivingEntity;
     }
@@ -256,7 +255,7 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
                 }
 
                 this.calculateEntityAnimation(false);
-                this.tryCheckInsideBlocks();
+                this.applyEffectsFromBlocks();
             } else {
 //                this.flyingSpeed = 0.02F;
 
@@ -286,7 +285,7 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
     @Override
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         ItemStack itemstack = player.getItemInHand(hand);
-        if (this.level().isClientSide) {
+        if (this.level().isClientSide()) {
             boolean flag = this.isOwnedBy(player) || this.isTame() || itemstack.is(END_WHALE_FOOD) && !this.isTame();
             return flag ? InteractionResult.CONSUME : InteractionResult.PASS;
         } else if (this.isSaddled() && player.isSecondaryUseActive()) {
@@ -294,7 +293,7 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
             return InteractionResult.CONSUME;
         } else if (this.isSaddled()) {
             this.mountWhale(player);
-            return InteractionResult.sidedSuccess(this.level().isClientSide);
+            return this.level().isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
         } else if (!this.isTame()) {
             if (itemstack.is(END_WHALE_FOOD)) {
                 if (!player.getAbilities().instabuild) {
@@ -335,11 +334,11 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
     }
 
     @Override
-    public int getExperienceReward() {
-        return 12 + this.level().random.nextInt(5);
+    protected int getBaseExperienceReward(ServerLevel level) {
+        return 12 + this.getRandom().nextInt(5);
     }
 
-    public static boolean checkEndWhaleSpawnRules(EntityType<EndWhaleEntity> animal, LevelAccessor worldIn, MobSpawnType reason, BlockPos pos, RandomSource randomIn) {
+    public static boolean checkEndWhaleSpawnRules(EntityType<EndWhaleEntity> animal, LevelAccessor worldIn, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
         return true;
     }
 
@@ -354,7 +353,7 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
     }
 
     @Override
-    public boolean causeFallDamage(float p_148750_, float p_148751_, DamageSource p_148752_) {
+    public boolean causeFallDamage(double p_148750_, float p_148751_, DamageSource p_148752_) {
         return false;
     }
 
@@ -367,7 +366,6 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
         FlyingPathNavigation flyingpathnavigation = new FlyingPathNavigation(this, level);
         flyingpathnavigation.setCanOpenDoors(false);
         flyingpathnavigation.setCanFloat(false);
-        flyingpathnavigation.setCanPassDoors(false);
         return flyingpathnavigation;
     }
 
@@ -389,14 +387,14 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
 
     private static final RawAnimation FLY_ANIMATION = RawAnimation.begin().thenLoop("whale_fly");
 
-    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
-        event.getController().setAnimation(FLY_ANIMATION);
+    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationTest<E> event) {
+        event.controller().setAnimation(FLY_ANIMATION);
         return PlayState.CONTINUE;
     }
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar data) {
-        data.add(new AnimationController<>(this, "controller", 0, this::animationPredicate));
+        data.add(new AnimationController<>("controller", 0, this::animationPredicate));
     }
 
     @Override
@@ -544,12 +542,15 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, Saddl
                 --this.calmDown;
                 return false;
             } else {
-                this.player = this.endWhale.level().getNearestPlayer(this.targetingConditions, this.endWhale);
+                if (!(this.endWhale.level() instanceof ServerLevel serverLevel)) {
+                    return false;
+                }
+                this.player = serverLevel.getNearestPlayer(this.targetingConditions, this.endWhale);
                 return this.player != null && !this.endWhale.isVehicle();
             }
         }
 
-        private boolean shouldFollow(LivingEntity entity) {
+        private boolean shouldFollow(LivingEntity entity, ServerLevel level) {
             return this.items.test(entity.getMainHandItem()) || this.items.test(entity.getOffhandItem());
         }
 

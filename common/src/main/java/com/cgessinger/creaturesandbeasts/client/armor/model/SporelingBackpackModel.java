@@ -2,30 +2,29 @@ package com.cgessinger.creaturesandbeasts.client.armor.model;
 
 import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.items.SporelingBackpackItem;
+import com.geckolib.model.GeoModel;
+import com.geckolib.renderer.base.GeoRenderState;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.resources.ResourceLocation;
-import software.bernie.geckolib.model.GeoModel;
+import net.minecraft.resources.Identifier;
 
 @Environment(EnvType.CLIENT)
 public class SporelingBackpackModel extends GeoModel<SporelingBackpackItem> {
-    private final ResourceLocation SPORELING_BACKPACK_MODEL = CreaturesAndBeasts.id("geo/armor/sporeling_backpack.geo.json");
-    private final ResourceLocation SPORELING_BACKPACK_TEXTURE = CreaturesAndBeasts.id("textures/armor/sporeling_backpack.png");
-    private final ResourceLocation SPORELING_BACKPACK_ANIMATION = CreaturesAndBeasts.id("animations/sporeling_backpack.json");
+    private static final Identifier SPORELING_BACKPACK_MODEL = CreaturesAndBeasts.id("geo/armor/sporeling_backpack");
+    private static final Identifier SPORELING_BACKPACK_TEXTURE = CreaturesAndBeasts.id("textures/armor/sporeling_backpack.png");
 
     @Override
-    public ResourceLocation getModelResource(SporelingBackpackItem object) {
+    public Identifier getModelResource(GeoRenderState renderState) {
         return SPORELING_BACKPACK_MODEL;
     }
 
     @Override
-    public ResourceLocation getTextureResource(SporelingBackpackItem object) {
+    public Identifier getTextureResource(GeoRenderState renderState) {
         return SPORELING_BACKPACK_TEXTURE;
     }
 
     @Override
-    public ResourceLocation getAnimationResource(SporelingBackpackItem animatable) {
+    public Identifier getAnimationResource(SporelingBackpackItem animatable) {
         return null;
     }
-
 }

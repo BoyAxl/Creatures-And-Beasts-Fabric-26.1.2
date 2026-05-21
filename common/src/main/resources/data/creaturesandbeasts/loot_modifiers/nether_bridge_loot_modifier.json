@@ -1,9 +1,0 @@
-{
-  "conditions": [
-    {
-      "condition": "forge:loot_table_id",
-      "loot_table_id": "creaturesandbeasts:entities/cindershell"
-    }
-  ],
-  "type": "creaturesandbeasts:nether_bridge_loot_modifier"
-}

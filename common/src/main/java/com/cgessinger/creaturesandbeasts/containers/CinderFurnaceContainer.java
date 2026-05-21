@@ -5,20 +5,23 @@ import com.cgessinger.creaturesandbeasts.entities.CindershellEntity;
 import com.cgessinger.creaturesandbeasts.init.CNBContainerTypes;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.player.StackedContents;
+import net.minecraft.world.entity.player.StackedItemContents;
 import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.SingleRecipeInput;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 
-public class CinderFurnaceContainer extends RecipeBookMenu<Container> {
+public class CinderFurnaceContainer extends RecipeBookMenu {
     public static final int INGREDIENT_SLOT = 0;
     public static final int RESULT_SLOT = 1;
     public static final int SLOT_COUNT = 2;
@@ -60,7 +63,11 @@ public class CinderFurnaceContainer extends RecipeBookMenu<Container> {
         this.addDataSlots(data);
     }
 
-    public void fillCraftSlotsStackedContents(StackedContents contents) {
+    public RecipeBookMenu.PostPlaceAction handlePlacement(boolean useMaxItems, boolean creative, RecipeHolder<?> recipe, ServerLevel level, Inventory inventory) {
+        return RecipeBookMenu.PostPlaceAction.NOTHING;
+    }
+
+    public void fillCraftSlotsStackedContents(StackedItemContents contents) {
         if (this.container instanceof StackedContentsCompatible) {
             ((StackedContentsCompatible)this.container).fillStackedContents(contents);
         }
@@ -73,8 +80,8 @@ public class CinderFurnaceContainer extends RecipeBookMenu<Container> {
         }
     }
 
-    public boolean recipeMatches(Recipe<? super Container> recipe) {
-        return recipe.matches(this.container, this.level);
+    public boolean recipeMatches(RecipeHolder<?> recipe) {
+        return recipe.value() instanceof AbstractCookingRecipe cookingRecipe && cookingRecipe.matches(new SingleRecipeInput(this.container.getItem(INGREDIENT_SLOT)), this.level);
     }
 
     public int getResultSlotIndex() {
@@ -142,7 +149,11 @@ public class CinderFurnaceContainer extends RecipeBookMenu<Container> {
     }
 
     protected boolean canSmelt(ItemStack stack) {
-        return this.level.getRecipeManager().getRecipeFor(this.recipeType, new SimpleContainer(stack), this.level).isPresent();
+        if (this.level instanceof ServerLevel serverLevel) {
+            return serverLevel.recipeAccess().getRecipeFor((RecipeType)this.recipeType, new SingleRecipeInput(stack), this.level).isPresent();
+        }
+
+        return false;
     }
 
     public RecipeBookType getRecipeBookType() {
@@ -196,7 +207,7 @@ public class CinderFurnaceContainer extends RecipeBookMenu<Container> {
         }
 
         public void checkTakeAchievements(ItemStack stack) {
-            stack.onCraftedBy(this.player.level(), this.player, this.removeCount);
+            stack.onCraftedBy(this.player, this.removeCount);
             if (this.player instanceof ServerPlayer serverPlayer && this.container instanceof CindershellEntity cindershellEntity) {
                 cindershellEntity.awardUsedRecipesAndPopExperience(serverPlayer);
             }

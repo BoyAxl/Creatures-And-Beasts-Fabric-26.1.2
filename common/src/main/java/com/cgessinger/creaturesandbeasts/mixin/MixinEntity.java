@@ -39,8 +39,11 @@ public class MixinEntity {
 
     @Inject(method = "turn", at = @At("RETURN"))
     private void CNB_rotateSporelingRider(double xRot, double yRot, CallbackInfo ci) {
-        if (((Entity) (Object)this) instanceof Player player && player.getFirstPassenger() instanceof SporelingEntity sporelingEntity) {
-            this.creaturesAndBeasts$clampRotation(player, sporelingEntity);
+        if (((Entity) (Object)this) instanceof Player player) {
+            SporelingEntity sporelingEntity = SporelingEntity.getBackpackPassenger(player);
+            if (sporelingEntity != null) {
+                this.creaturesAndBeasts$clampRotation(player, sporelingEntity);
+            }
         }
     }
 

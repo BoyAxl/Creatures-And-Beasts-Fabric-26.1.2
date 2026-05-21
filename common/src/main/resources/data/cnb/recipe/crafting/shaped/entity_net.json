@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "  #",
+    " #X",
+    "#  "
+  ],
+  "key": {
+    "#": "minecraft:stick",
+    "X": "minecraft:string"
+  },
+  "result": {
+    "id": "cnb:entity_net"
+  }
+}

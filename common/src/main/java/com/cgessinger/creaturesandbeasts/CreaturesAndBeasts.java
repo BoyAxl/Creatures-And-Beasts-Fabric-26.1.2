@@ -4,21 +4,25 @@ import com.cgessinger.creaturesandbeasts.config.CNBConfig;
 import com.cgessinger.creaturesandbeasts.events.CNBEvents;
 import com.cgessinger.creaturesandbeasts.init.*;
 import com.cgessinger.creaturesandbeasts.util.BiomeSpawns;
-import com.cgessinger.creaturesandbeasts.world.gen.ModEntitySpawns;
-import dev.architectury.event.events.common.InteractionEvent;
-import dev.architectury.event.events.common.TickEvent;
-import dev.architectury.registry.CreativeTabRegistry;
-import dev.architectury.registry.registries.DeferredRegister;
-import dev.architectury.registry.registries.RegistrySupplier;
+import com.cgessinger.creaturesandbeasts.util.CNBDeferredRegister;
+import com.cgessinger.creaturesandbeasts.util.CNBRegistrySupplier;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MobSpawnSettings;
+import net.minecraft.world.level.block.Block;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.infernalstudios.config.Config;
@@ -33,11 +37,15 @@ public class CreaturesAndBeasts {
         return instance;
     }
 
-    public static final String MOD_ID = "creaturesandbeasts";
+    public static final String MOD_ID = "cnb";
     public static final Logger LOGGER = LogManager.getLogger();
 
-    private static final DeferredRegister<CreativeModeTab> TAB_REGISTRY = DeferredRegister.create(MOD_ID, Registries.CREATIVE_MODE_TAB);
-    public static final RegistrySupplier<CreativeModeTab> TAB = TAB_REGISTRY.register("tab", () -> CreativeTabRegistry.create(Component.translatable("itemGroup.cnb_tab"), () -> new ItemStack(CNBItems.GREBE_SPAWN_EGG.get())));
+    private static final CNBDeferredRegister<CreativeModeTab> TAB_REGISTRY = CNBDeferredRegister.create(MOD_ID, BuiltInRegistries.CREATIVE_MODE_TAB);
+    public static final CNBRegistrySupplier<CreativeModeTab> TAB = TAB_REGISTRY.register("tab", () -> CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
+            .title(Component.translatable("itemGroup.cnb_tab"))
+            .icon(() -> new ItemStack(CNBItems.GREBE_SPAWN_EGG.get()))
+            .displayItems((parameters, output) -> CNBItems.addCreativeTabItems(output))
+            .build());
 
     private final CNBEvents events = new CNBEvents();
 
@@ -52,11 +60,10 @@ public class CreaturesAndBeasts {
         TAB_REGISTRY.register();
         CNBParticleTypes.PARTICLE_TYPES.register();
         CNBBlocks.BLOCKS.register();
+        CNBEntityTypes.ENTITY_TYPES.register();
         CNBItems.ITEMS.register();
         CNBContainerTypes.CONTAINER_TYPES.register();
-        CNBPaintingTypes.PAINTINGS.register();
         CNBSoundEvents.SOUND_EVENTS.register();
-        CNBEntityTypes.ENTITY_TYPES.register();
 
         CNBSporelingTypes.registerAll();
         CNBLizardTypes.registerAll();
@@ -80,8 +87,10 @@ public class CreaturesAndBeasts {
 
         this.events.createEntityAttributes();
 
-        TickEvent.PLAYER_POST.register(this.events::onLivingTick);
-        InteractionEvent.RIGHT_CLICK_BLOCK.register((player, interactionHand, blockPos, direction) -> this.events.onRightClickBlock(player));
+        ServerTickEvents.END_SERVER_TICK.register(server -> server.getPlayerList().getPlayers().forEach(this.events::onLivingTick));
+        UseBlockCallback.EVENT.register((player, level, hand, hitResult) -> this.events.onBackpackSporelingUse(player));
+        UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> this.events.onBackpackSporelingUse(player));
+        UseItemCallback.EVENT.register((player, level, hand) -> this.events.onBackpackSporelingUse(player));
     }
 
     public CNBEvents getEvents() {
@@ -96,126 +105,137 @@ public class CreaturesAndBeasts {
         spawns.addSpawn(
             biome -> biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.CACTEM.get(), 3, 6, 13),
+            BiomeSpawns.spawn(CNBEntityTypes.CACTEM.get(), 3, 6, 13),
             null
         );
 
         spawns.addSpawn(
             biome -> biome.is(Biomes.NETHER_WASTES),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.CINDERSHELL.get(), 400, 2, 8),
+            BiomeSpawns.spawn(CNBEntityTypes.CINDERSHELL.get(), 400, 2, 8),
             null
         );
 
         spawns.addSpawn(
             biome -> biome.is(BiomeTags.IS_END),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.END_WHALE.get(), 1, 1, 1),
+            BiomeSpawns.spawn(CNBEntityTypes.END_WHALE.get(), 1, 1, 1),
             new MobSpawnSettings.MobSpawnCost(400, 1)
         );
 
         spawns.addSpawn(
             biome -> biome.is(Biomes.SWAMP),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.LILYTAD.get(), 45, 1, 1),
+            BiomeSpawns.spawn(CNBEntityTypes.LILYTAD.get(), 45, 1, 1),
             null
         );
 
         spawns.addSpawn(
             biome -> biome.is(BiomeTags.IS_RIVER),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.LITTLE_GREBE.get(), 35, 2, 3),
+            BiomeSpawns.spawn(CNBEntityTypes.LITTLE_GREBE.get(), 35, 2, 3),
             null
         );
 
         spawns.addSpawn(
             biome -> biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.LIZARD.get(), 15, 1, 4),
+            BiomeSpawns.spawn(CNBEntityTypes.LIZARD.get(), 15, 1, 4),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(BiomeTags.IS_JUNGLE),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.LIZARD.get(), 100, 1, 4),
+            BiomeSpawns.spawn(CNBEntityTypes.LIZARD.get(), 100, 1, 4),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(Biomes.MUSHROOM_FIELDS), // TODO: use common tag
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.LIZARD.get(), 10, 1, 4),
+            BiomeSpawns.spawn(CNBEntityTypes.LIZARD.get(), 10, 1, 4),
             null
         );
 
         spawns.addSpawn(
             biome -> biome.is(Biomes.SWAMP),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.MINIPAD.get(), 20, 3, 6),
+            BiomeSpawns.spawn(CNBEntityTypes.MINIPAD.get(), 20, 3, 6),
             null
         );
 
         spawns.addSpawn(
             biome -> biome.is(Biomes.MUSHROOM_FIELDS),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.SPORELING.get(), 20, 3, 5),
+            BiomeSpawns.spawn(CNBEntityTypes.SPORELING.get(), 20, 3, 5),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(Biomes.SWAMP),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.SPORELING.get(), 25, 3, 5),
+            BiomeSpawns.spawn(CNBEntityTypes.SPORELING.get(), 25, 3, 5),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(Biomes.LUSH_CAVES),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.SPORELING.get(), 60, 3, 5),
+            BiomeSpawns.spawn(CNBEntityTypes.SPORELING.get(), 60, 3, 5),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(Biomes.DARK_FOREST),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.SPORELING.get(), 70, 3, 5),
+            BiomeSpawns.spawn(CNBEntityTypes.SPORELING.get(), 70, 3, 5),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(Biomes.NETHER_WASTES),
-            MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.SPORELING.get(), 60, 2, 4),
+            MobCategory.MONSTER,
+            BiomeSpawns.spawn(CNBEntityTypes.SPORELING.get(), 60, 2, 4),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(Biomes.WARPED_FOREST),
-            MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.SPORELING.get(), 2, 2, 4),
+            MobCategory.MONSTER,
+            BiomeSpawns.spawn(CNBEntityTypes.SPORELING.get(), 2, 2, 4),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(Biomes.CRIMSON_FOREST),
-            MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.SPORELING.get(), 120, 2, 4),
+            MobCategory.MONSTER,
+            BiomeSpawns.spawn(CNBEntityTypes.SPORELING.get(), 120, 2, 4),
             null
         );
 
         spawns.addSpawn(
             biome -> biome.is(Biomes.SNOWY_PLAINS) || biome.is(Biomes.ICE_SPIKES) || biome.is(Biomes.SNOWY_TAIGA) || biome.is(Biomes.SNOWY_SLOPES),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.YETI.get(), 1, 2, 3),
+            BiomeSpawns.spawn(CNBEntityTypes.YETI.get(), 1, 2, 3),
             null
         );
         spawns.addSpawn(
             biome -> biome.is(Biomes.FROZEN_PEAKS),
             MobCategory.CREATURE,
-            new MobSpawnSettings.SpawnerData(CNBEntityTypes.YETI.get(), 2, 2, 3),
+            BiomeSpawns.spawn(CNBEntityTypes.YETI.get(), 2, 2, 3),
             null
         );
     }
 
     public void commonSetup() {
-        ModEntitySpawns.entitySpawnPlacementRegistry();
     }
     
-    public static ResourceLocation id(String path) {
-        return new ResourceLocation(MOD_ID, path);
+    public static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(MOD_ID, path);
+    }
+
+    public static ResourceKey<Item> itemKey(String path) {
+        return ResourceKey.create(Registries.ITEM, id(path));
+    }
+
+    public static Item.Properties itemProperties(String path) {
+        return new Item.Properties().setId(itemKey(path));
+    }
+
+    public static ResourceKey<Block> blockKey(String path) {
+        return ResourceKey.create(Registries.BLOCK, id(path));
     }
 }

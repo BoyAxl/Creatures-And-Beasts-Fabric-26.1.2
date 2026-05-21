@@ -5,7 +5,6 @@ import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import com.cgessinger.creaturesandbeasts.util.MinipadType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.SimpleParticleType;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -28,26 +27,26 @@ import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.ServerLevelAccessor;
-import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.pathfinder.PathType;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.CollisionContext;
 import org.jetbrains.annotations.Nullable;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.GeoAnimatable;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.GeoAnimatable;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.animation.AnimationController;
+import com.geckolib.animation.state.AnimationTest;
+import com.geckolib.animation.RawAnimation;
+import com.geckolib.animation.object.PlayState;
+import com.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
 
@@ -66,7 +65,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     public MinipadEntity(EntityType<MinipadEntity> type, Level worldIn) {
         super(type, worldIn);
         this.shearedTimer = 0;
-        this.setPathfindingMalus(BlockPathTypes.WATER, 0.0F);
+        this.setPathfindingMalus(PathType.WATER, 0.0F);
 
         this.lookControl = new LookControl(this) {
             @Override
@@ -80,31 +79,31 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(TYPE, CNBMinipadTypes.PINK.getId().toString());
-        this.entityData.define(SHEARED, false);
-        this.entityData.define(GLOWING, false);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(TYPE, CNBMinipadTypes.PINK.getId().toString());
+        builder.define(SHEARED, false);
+        builder.define(GLOWING, false);
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag compound) {
-        super.readAdditionalSaveData(compound);
+    public void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
 
-        MinipadType type = MinipadType.getById(compound.getString("MinipadType"));
+        MinipadType type = MinipadType.getById(input.getStringOr("MinipadType", CNBMinipadTypes.PINK.getId().toString()));
         if (type == null) {
             type = CNBMinipadTypes.PINK;
         }
         this.setMinipadType(type);
-        this.shearedTimer = compound.getInt("ShearedTimer");
+        this.shearedTimer = input.getIntOr("ShearedTimer", 0);
         this.setSheared(this.shearedTimer > 0);
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag compound) {
-        super.addAdditionalSaveData(compound);
-        compound.putInt("ShearedTimer", this.shearedTimer);
-        compound.putString("MinipadType", this.getMinipadType().getId().toString());
+    public void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putInt("ShearedTimer", this.shearedTimer);
+        output.putString("MinipadType", this.getMinipadType().getId().toString());
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -133,7 +132,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         }
 
         if (!this.level().isClientSide()) {
-            long time = this.level().getDayTime();
+            long time = this.level().getDefaultClockTime() % 24000L;
             this.setGlowing(time >= 13000 && time <= 23000);
         }
     }
@@ -156,7 +155,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     }
 
     @Override
-    public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType spawnType, @Nullable SpawnGroupData spawnGroupData, @Nullable CompoundTag tag) {
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, EntitySpawnReason spawnType, @Nullable SpawnGroupData spawnGroupData) {
         switch (this.random.nextInt(3)) {
             case 0:
             default:
@@ -170,10 +169,10 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
                 break;
         }
 
-        return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData, tag);
+        return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData);
     }
 
-    public static boolean checkMinipadSpawnRules(EntityType<MinipadEntity> animal, LevelAccessor worldIn, MobSpawnType reason, BlockPos pos, RandomSource randomIn) {
+    public static boolean checkMinipadSpawnRules(EntityType<MinipadEntity> animal, LevelAccessor worldIn, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
         return true;
     }
 
@@ -181,7 +180,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     protected void pushEntities() {
         List<Entity> list = this.level().getEntities(this, this.getBoundingBox().inflate(0.2, 0, 0.2), EntitySelector.pushableBy(this));
         if (!list.isEmpty()) {
-            int i = this.level().getGameRules().getInt(GameRules.RULE_MAX_ENTITY_CRAMMING);
+            int i = this.level() instanceof ServerLevel serverLevel ? serverLevel.getGameRules().get(GameRules.MAX_ENTITY_CRAMMING) : 0;
             if (i > 0 && list.size() > i - 1 && this.random.nextInt(4) == 0) {
                 int j = 0;
 
@@ -220,8 +219,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     private void floatMinipad() {
         if (this.isInWater()) {
-            CollisionContext collisioncontext = CollisionContext.of(this);
-            if (collisioncontext.isAbove(LiquidBlock.STABLE_SHAPE, this.blockPosition(), true) && !this.level().getFluidState(this.blockPosition().above()).is(FluidTags.WATER)) {
+            if (!this.level().getFluidState(this.blockPosition().above()).is(FluidTags.WATER)) {
                 this.setOnGround(true);
             } else {
                 this.setDeltaMovement(this.getDeltaMovement().scale(0.5D).add(0.0D, 0.1D, 0.0D));
@@ -272,10 +270,11 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     }
 
     @Override
-    public void shear(SoundSource source) {
+    public void shear(ServerLevel level, SoundSource source, ItemStack stack) {
         this.level().playSound(null, this, SoundEvents.SHEEP_SHEAR, source, 1.0F, 1.0F);
 
-        ItemEntity item = this.spawnAtLocation(this.level().getDayTime() > 13000 ? new ItemStack(this.getMinipadType().getGlowShearItem()) : new ItemStack(this.getMinipadType().getShearItem()), 1);
+        long time = level.getDefaultClockTime() % 24000L;
+        ItemEntity item = this.spawnAtLocation(level, time > 13000 ? new ItemStack(this.getMinipadType().getGlowShearItem()) : new ItemStack(this.getMinipadType().getShearItem()), 1);
 
         if (item != null) {
             item.addDeltaMovement(new Vec3((this.random.nextFloat() - this.random.nextFloat()) * 0.1F, this.random.nextFloat() * 0.05F, (this.random.nextFloat() - this.random.nextFloat()) * 0.1F));
@@ -287,13 +286,18 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         return this.isAlive() && !this.getSheared();
     }
 
+    @Override
+    public boolean isFood(ItemStack stack) {
+        return false;
+    }
+
     public boolean shouldLookAround() {
         return !this.level().getFluidState(this.blockPosition()).is(FluidTags.WATER);
     }
 
     @Override
-    public int getExperienceReward() {
-        return 2 + this.level().random.nextInt(3);
+    protected int getBaseExperienceReward(ServerLevel level) {
+        return 2 + this.getRandom().nextInt(3);
     }
 
     @Override
@@ -320,23 +324,28 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         return CNBSoundEvents.MINIPAD_HURT.get();
     }
 
-    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationState<E> event) {
-        if (this.isInWater() && !(this.walkAnimation.speed() > -0.15f && this.walkAnimation.speed() < 0.15)) {
-            event.getController().setAnimation(SWIM_ANIMATION);
+    private <E extends GeoAnimatable> PlayState animationPredicate(AnimationTest<E> event) {
+        double xMovement = this.getX() - this.xo;
+        double zMovement = this.getZ() - this.zo;
+        boolean isMoving = xMovement * xMovement + zMovement * zMovement > 1.0E-4D;
+
+        if (this.isInWater() && isMoving) {
+            event.controller().setAnimation(SWIM_ANIMATION);
             return PlayState.CONTINUE;
         } else if (this.isInWater()) {
-            event.getController().setAnimation(FLOAT_ANIMATION);
+            event.controller().setAnimation(FLOAT_ANIMATION);
             return PlayState.CONTINUE;
-        } else if (!(this.walkAnimation.speed() > -0.15f && this.walkAnimation.speed() < 0.15)) {
-            event.getController().setAnimation(WALK_ANIMATION);
+        } else if (isMoving) {
+            event.controller().setAnimation(WALK_ANIMATION);
             return PlayState.CONTINUE;
         }
+        event.controller().reset();
         return PlayState.STOP;
     }
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar animationData) {
-        animationData.add(new AnimationController<>(this, "controller", 0, this::animationPredicate));
+        animationData.add(new AnimationController<>("controller", 0, this::animationPredicate));
     }
 
     @Override

@@ -4,21 +4,22 @@ import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.client.entity.model.CactemSpearModel;
 import com.cgessinger.creaturesandbeasts.entities.ThrownCactemSpearEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.entity.ItemRenderer;
+import net.minecraft.client.renderer.entity.state.ThrownTridentRenderState;
+import net.minecraft.client.renderer.feature.ItemFeatureRenderer;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Unit;
 
 @Environment(EnvType.CLIENT)
-public class ThrownCactemSpearRenderer extends EntityRenderer<ThrownCactemSpearEntity> {
-    public static final ResourceLocation TEXTURE = CreaturesAndBeasts.id("textures/entity/cactem_spear.png");
+public class ThrownCactemSpearRenderer extends EntityRenderer<ThrownCactemSpearEntity, ThrownTridentRenderState> {
+    private static final Identifier TEXTURE = CreaturesAndBeasts.id("textures/entity/cactem_spear.png");
     private final CactemSpearModel model;
 
     public ThrownCactemSpearRenderer(EntityRendererProvider.Context context) {
@@ -26,17 +27,29 @@ public class ThrownCactemSpearRenderer extends EntityRenderer<ThrownCactemSpearE
         this.model = new CactemSpearModel(context.bakeLayer(CactemSpearModel.LAYER_LOCATION));
     }
 
-    public void render(ThrownCactemSpearEntity spearEntity, float p_116112_, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int packedLightIn) {
+    @Override
+    public void submit(ThrownTridentRenderState renderState, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, CameraRenderState cameraRenderState) {
         poseStack.pushPose();
-        poseStack.mulPose(Axis.YP.rotationDegrees(Mth.lerp(partialTicks, spearEntity.yRotO, spearEntity.getYRot()) + 180.0F));
-        poseStack.mulPose(Axis.XP.rotationDegrees(Mth.lerp(partialTicks, spearEntity.xRotO, spearEntity.getXRot())));
-        VertexConsumer vertexconsumer = ItemRenderer.getFoilBufferDirect(buffer, this.model.renderType(this.getTextureLocation(spearEntity)), false, spearEntity.isFoil());
-        this.model.renderToBuffer(poseStack, vertexconsumer, packedLightIn, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
+        poseStack.mulPose(Axis.YP.rotationDegrees(renderState.yRot + 180.0F));
+        poseStack.mulPose(Axis.XP.rotationDegrees(renderState.xRot));
+        submitNodeCollector.order(0).submitModel(this.model, Unit.INSTANCE, poseStack, TEXTURE, renderState.lightCoords, OverlayTexture.NO_OVERLAY, renderState.outlineColor, null);
+        if (renderState.isFoil) {
+            submitNodeCollector.order(1).submitModel(this.model, Unit.INSTANCE, poseStack, ItemFeatureRenderer.getFoilRenderType(this.model.renderType(TEXTURE), false), renderState.lightCoords, OverlayTexture.NO_OVERLAY, renderState.outlineColor, null);
+        }
         poseStack.popPose();
-        super.render(spearEntity, p_116112_, partialTicks, poseStack, buffer, packedLightIn);
+        super.submit(renderState, poseStack, submitNodeCollector, cameraRenderState);
     }
 
-    public ResourceLocation getTextureLocation(ThrownCactemSpearEntity spearEntity) {
-        return TEXTURE;
+    @Override
+    public void extractRenderState(ThrownCactemSpearEntity entity, ThrownTridentRenderState renderState, float partialTick) {
+        super.extractRenderState(entity, renderState, partialTick);
+        renderState.yRot = entity.getYRot(partialTick);
+        renderState.xRot = entity.getXRot(partialTick);
+        renderState.isFoil = entity.isFoil();
+    }
+
+    @Override
+    public ThrownTridentRenderState createRenderState() {
+        return new ThrownTridentRenderState();
     }
 }

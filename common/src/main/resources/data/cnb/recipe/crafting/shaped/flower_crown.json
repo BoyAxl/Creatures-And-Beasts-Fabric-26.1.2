@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "FFF"
+  ],
+  "key": {
+    "F": "#cnb:minipad_flowers"
+  },
+  "result": {
+    "id": "cnb:flower_crown"
+  }
+}

@@ -10,7 +10,6 @@
     "MixinEntity"
   ],
   "client": [
-    "MixinGeoEntityRenderer",
     "MixinLivingEntityRenderer"
   ]
 }

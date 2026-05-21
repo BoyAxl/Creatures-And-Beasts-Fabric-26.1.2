@@ -1,13 +1,11 @@
 package com.cgessinger.creaturesandbeasts.items;
 
-import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.entities.LizardEggEntity;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -19,14 +17,14 @@ import net.minecraft.world.level.block.Block;
 
 public class LizardEggItem extends BlockItem {
 
-    public LizardEggItem(Block block) {
-        super(block, new Item.Properties().stacksTo(16).arch$tab(CreaturesAndBeasts.TAB));
+    public LizardEggItem(Block block, Item.Properties properties) {
+        super(block, properties);
     }
 
-    public InteractionResultHolder<ItemStack> use(Level worldIn, Player playerIn, InteractionHand handIn) {
+    public InteractionResult use(Level worldIn, Player playerIn, InteractionHand handIn) {
         ItemStack itemstack = playerIn.getItemInHand(handIn);
-        worldIn.playSound(null, playerIn.getX(), playerIn.getY(), playerIn.getZ(), SoundEvents.EGG_THROW, SoundSource.PLAYERS, 0.5F, 0.4F / (worldIn.random.nextFloat() * 0.4F + 0.8F));
-        if (!worldIn.isClientSide) {
+        worldIn.playSound(null, playerIn.getX(), playerIn.getY(), playerIn.getZ(), SoundEvents.EGG_THROW, SoundSource.PLAYERS, 0.5F, 0.4F / (worldIn.getRandom().nextFloat() * 0.4F + 0.8F));
+        if (!worldIn.isClientSide()) {
             LizardEggEntity eggentity = new LizardEggEntity(worldIn, playerIn);
             eggentity.setItem(itemstack);
             eggentity.shootFromRotation(playerIn, playerIn.getXRot(), playerIn.getYRot(), 0.0F, 1.5F, 1.0F);
@@ -38,18 +36,12 @@ public class LizardEggItem extends BlockItem {
             itemstack.shrink(1);
         }
 
-        return InteractionResultHolder.sidedSuccess(itemstack, worldIn.isClientSide());
+        return InteractionResult.SUCCESS;
     }
 
     public InteractionResult useOn(UseOnContext context) {
         if (context.isSecondaryUseActive()) {
-            InteractionResult interactionresult = this.place(new BlockPlaceContext(context));
-            if (!interactionresult.consumesAction() && this.isEdible()) {
-                InteractionResult interactionresult1 = this.use(context.getLevel(), context.getPlayer(), context.getHand()).getResult();
-                return interactionresult1 == InteractionResult.CONSUME ? InteractionResult.CONSUME_PARTIAL : interactionresult1;
-            } else {
-                return interactionresult;
-            }
+            return this.place(new BlockPlaceContext(context));
         }
 
         Player player = context.getPlayer();
@@ -59,8 +51,8 @@ public class LizardEggItem extends BlockItem {
         }
 
         ItemStack itemstack = player.getItemInHand(context.getHand());
-        context.getLevel().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.EGG_THROW, SoundSource.PLAYERS, 0.5F, 0.4F / (context.getLevel().random.nextFloat() * 0.4F + 0.8F));
-        if (!context.getLevel().isClientSide) {
+        context.getLevel().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.EGG_THROW, SoundSource.PLAYERS, 0.5F, 0.4F / (context.getLevel().getRandom().nextFloat() * 0.4F + 0.8F));
+        if (!context.getLevel().isClientSide()) {
             LizardEggEntity eggentity = new LizardEggEntity(context.getLevel(), player);
             eggentity.setItem(itemstack);
             eggentity.shootFromRotation(player, player.getXRot(), player.getYRot(), 0.0F, 1.5F, 1.0F);
@@ -72,11 +64,6 @@ public class LizardEggItem extends BlockItem {
             itemstack.shrink(1);
         }
 
-        return InteractionResultHolder.sidedSuccess(itemstack, context.getLevel().isClientSide()).getResult();
-    }
-
-    @Override
-    public String getDescriptionId() {
-        return this.getOrCreateDescriptionId();
+        return InteractionResult.SUCCESS;
     }
 }

@@ -4,7 +4,7 @@ import com.cgessinger.creaturesandbeasts.util.MinipadType;
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,7 +23,7 @@ public class CNBMinipadTypes {
     public static final MinipadType YELLOW = registerWithCNBDirectory(MOD_ID, "yellow", CNBParticleTypes.YELLOW_MINIPAD_FLOWER);
 
     private static MinipadType registerWithCNBDirectory(String namespace, String name, Supplier<SimpleParticleType> particle) {
-        return registerWithCNBDirectory(() -> BuiltInRegistries.ITEM.get(new ResourceLocation(namespace, name + "_minipad_flower")), () -> BuiltInRegistries.ITEM.get(new ResourceLocation(namespace, name + "_minipad_flower_glow")), namespace, name, particle);
+        return registerWithCNBDirectory(() -> BuiltInRegistries.ITEM.getValue(Identifier.fromNamespaceAndPath(namespace, name + "_minipad_flower")), () -> BuiltInRegistries.ITEM.getValue(Identifier.fromNamespaceAndPath(namespace, name + "_minipad_flower_glow")), namespace, name, particle);
     }
 
     private static MinipadType registerWithCNBDirectory(@Nullable Item shearItem, @Nullable Item glowShearItem, String namespace, String name, Supplier<SimpleParticleType> particle) {
@@ -31,7 +31,7 @@ public class CNBMinipadTypes {
     }
 
     private static MinipadType registerWithCNBDirectory(@Nullable Supplier<Item> shearItem, @Nullable Supplier<Item> glowShearItem, String namespace, String name, Supplier<SimpleParticleType> particle) {
-        return register(new MinipadType(shearItem, glowShearItem, new ResourceLocation(namespace, name), Pair.of(new ResourceLocation(MOD_ID, "textures/entity/minipad/minipad_" + name + ".png"), new ResourceLocation(MOD_ID, "textures/entity/minipad/minipad_" + name + "_glow.png")), particle));
+        return register(new MinipadType(shearItem, glowShearItem, Identifier.fromNamespaceAndPath(namespace, name), Pair.of(Identifier.fromNamespaceAndPath(MOD_ID, "textures/entity/minipad/minipad_" + name + ".png"), Identifier.fromNamespaceAndPath(MOD_ID, "textures/entity/minipad/minipad_" + name + "_glow.png")), particle));
     }
 
     private static MinipadType register(MinipadType minipadType) {

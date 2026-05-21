@@ -2,84 +2,63 @@ package com.cgessinger.creaturesandbeasts.items;
 
 import com.cgessinger.creaturesandbeasts.entities.ThrownCactemSpearEntity;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
-import com.cgessinger.creaturesandbeasts.items.extensions.CanEnchantItem;
-import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.Multimap;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.stats.Stats;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.UseAnim;
-import net.minecraft.world.item.Vanishable;
-import net.minecraft.world.item.enchantment.*;
+import net.minecraft.world.item.ItemUseAnimation;
+import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-public class SpearItem extends Item implements Vanishable, CanEnchantItem {
-    private final Multimap<Attribute, AttributeModifier> defaultModifiers;
-
+public class SpearItem extends Item {
     public SpearItem(Properties properties) {
         super(properties);
-        ImmutableMultimap.Builder<Attribute, AttributeModifier> builder = ImmutableMultimap.builder();
-        builder.put(Attributes.ATTACK_DAMAGE, new AttributeModifier(BASE_ATTACK_DAMAGE_UUID, "Tool modifier", 5.0D, AttributeModifier.Operation.ADDITION));
-        builder.put(Attributes.ATTACK_SPEED, new AttributeModifier(BASE_ATTACK_SPEED_UUID, "Tool modifier", -2.9D, AttributeModifier.Operation.ADDITION));
-        this.defaultModifiers = builder.build();
+    }
+
+    public static ItemAttributeModifiers createAttributes() {
+        return ItemAttributeModifiers.builder()
+                .add(Attributes.ATTACK_DAMAGE, new AttributeModifier(BASE_ATTACK_DAMAGE_ID, 5.0D, AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.MAINHAND)
+                .add(Attributes.ATTACK_SPEED, new AttributeModifier(BASE_ATTACK_SPEED_ID, -2.9D, AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.MAINHAND)
+                .build();
     }
 
     @Override
-    public boolean canAttackBlock(BlockState state, Level level, BlockPos pos, Player player) {
-        return !player.isCreative();
+    public ItemUseAnimation getUseAnimation(ItemStack stack) {
+        return ItemUseAnimation.SPEAR;
     }
 
     @Override
-    public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
-        if (enchantment instanceof TridentLoyaltyEnchantment || enchantment instanceof MendingEnchantment ||
-                enchantment instanceof DigDurabilityEnchantment || enchantment instanceof VanishingCurseEnchantment ||
-                enchantment instanceof FireAspectEnchantment || enchantment instanceof DamageEnchantment ||
-                enchantment instanceof KnockbackEnchantment || enchantment instanceof MultiShotEnchantment ||
-                enchantment.equals(Enchantments.MOB_LOOTING)) {
-            return true;
-        }
-
-        return CanEnchantItem.super.canApplyAtEnchantingTable(stack, enchantment);
-    }
-
-    @Override
-    public UseAnim getUseAnimation(ItemStack stack) {
-        return UseAnim.SPEAR;
-    }
-
-    @Override
-    public int getUseDuration(ItemStack stack) {
+    public int getUseDuration(ItemStack stack, LivingEntity entity) {
         return 72000;
     }
 
     @Override
-    public void releaseUsing(ItemStack stack, Level level, LivingEntity entity, int useTicks) {
-        if (entity instanceof Player) {
-            Player player = (Player)entity;
-            int i = this.getUseDuration(stack) - useTicks;
-            if (i >= 10 && !level.isClientSide) {
-                stack.hurtAndBreak(1, player, (broadcastPlayer) -> broadcastPlayer.broadcastBreakEvent(entity.getUsedItemHand()));
-
+    public boolean releaseUsing(ItemStack stack, Level level, LivingEntity entity, int useTicks) {
+        if (entity instanceof Player player) {
+            int i = this.getUseDuration(stack, entity) - useTicks;
+            if (i >= 10 && !level.isClientSide()) {
+                stack.hurtAndBreak(1, player, entity.getUsedItemHand());
                 spawnSpears(stack, player, level);
 
                 if (!player.getAbilities().instabuild) {
@@ -88,27 +67,21 @@ public class SpearItem extends Item implements Vanishable, CanEnchantItem {
             }
 
             player.awardStat(Stats.ITEM_USED.get(this));
+            return true;
         }
+
+        return false;
     }
 
-
     private void spawnSpears(ItemStack stack, Player player, Level level) {
-        int multishotLevel = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.MULTISHOT, stack);
+        Holder<Enchantment> multishot = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.MULTISHOT);
+        Holder<Enchantment> loyalty = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.LOYALTY);
+        int multishotLevel = EnchantmentHelper.getItemEnchantmentLevel(multishot, stack);
         int numberOfSpears = multishotLevel == 0 ? 1 : 3;
         float[] afloat = getShotPitches(player.getRandom());
 
         ItemStack noLoyaltyStack = stack.copy();
-
-        ResourceLocation loyaltyResource = EnchantmentHelper.getEnchantmentId(Enchantments.LOYALTY);
-        ListTag listtag = noLoyaltyStack.getEnchantmentTags();
-        for(int i = 0; i < listtag.size(); ++i) {
-            CompoundTag compoundtag = listtag.getCompound(i);
-            ResourceLocation tagEnchantment = EnchantmentHelper.getEnchantmentId(compoundtag);
-            if (tagEnchantment != null && tagEnchantment.equals(loyaltyResource)) {
-                listtag.remove(compoundtag);
-            }
-        }
-
+        EnchantmentHelper.updateEnchantments(noLoyaltyStack, enchantments -> enchantments.set(loyalty, 0));
 
         for (int i = 0; i < numberOfSpears; i++) {
             if (i == 0) {
@@ -127,10 +100,10 @@ public class SpearItem extends Item implements Vanishable, CanEnchantItem {
         float radians = randomization * Mth.DEG_TO_RAD;
         float g = Mth.sin(radians / 2f);
         Quaternionf quaternion = new Quaternionf(
-            vec31.x() * g,
-            vec31.y() * g,
-            vec31.z() * g,
-            Mth.cos(radians / 2f)
+                vec31.x() * g,
+                vec31.y() * g,
+                vec31.z() * g,
+                Mth.cos(radians / 2f)
         );
         Vec3 vec3 = player.getViewVector(1.0F);
         Vector3f vector3f = vec3.toVector3f();
@@ -158,43 +131,27 @@ public class SpearItem extends Item implements Vanishable, CanEnchantItem {
     }
 
     @Override
-    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+    public InteractionResult use(Level level, Player player, InteractionHand hand) {
         ItemStack itemstack = player.getItemInHand(hand);
         if (itemstack.getDamageValue() >= itemstack.getMaxDamage() - 1) {
-            return InteractionResultHolder.fail(itemstack);
-        } else {
-            player.startUsingItem(hand);
-            return InteractionResultHolder.consume(itemstack);
+            return InteractionResult.FAIL;
         }
+
+        player.startUsingItem(hand);
+        return InteractionResult.CONSUME;
     }
 
     @Override
-    public boolean hurtEnemy(ItemStack stack, LivingEntity hurtEntity, LivingEntity owner) {
-        stack.hurtAndBreak(1, owner, (player) -> {
-            player.broadcastBreakEvent(EquipmentSlot.MAINHAND);
-        });
-        return true;
+    public void hurtEnemy(ItemStack stack, LivingEntity hurtEntity, LivingEntity owner) {
+        stack.hurtAndBreak(1, owner, EquipmentSlot.MAINHAND);
     }
 
     @Override
     public boolean mineBlock(ItemStack stack, Level level, BlockState state, BlockPos pos, LivingEntity entity) {
-        if ((double)state.getDestroySpeed(level, pos) != 0.0D) {
-            stack.hurtAndBreak(2, entity, (player) -> {
-                player.broadcastBreakEvent(EquipmentSlot.MAINHAND);
-            });
+        if ((double) state.getDestroySpeed(level, pos) != 0.0D) {
+            stack.hurtAndBreak(2, entity, EquipmentSlot.MAINHAND);
         }
 
         return true;
     }
-
-    @Override
-    public Multimap<Attribute, AttributeModifier> getDefaultAttributeModifiers(EquipmentSlot slot) {
-        return slot == EquipmentSlot.MAINHAND ? this.defaultModifiers : super.getDefaultAttributeModifiers(slot);
-    }
-
-    @Override
-    public int getEnchantmentValue() {
-        return 1;
-    }
-
 }
