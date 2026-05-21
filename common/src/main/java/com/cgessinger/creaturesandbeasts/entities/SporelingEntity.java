@@ -508,7 +508,7 @@ public class SporelingEntity extends TamableAnimal implements GeoEntity, MultiCa
 
         if (this.isInSittingPose()) {
             event.controller().setAnimation(SIT_ANIMATION);
-        } else if ((isSittingAnimation || (isStandingAnimation && !event.controller().getPlayState().equals(PlayState.STOP))) && !this.isInSittingPose()) {
+        } else if ((isSittingAnimation || (isStandingAnimation && event.controller().isAnimatingBones())) && !this.isInSittingPose()) {
             event.controller().setAnimation(STAND_ANIMATION);
         } else if (this.isAttacking()) {
             event.controller().setAnimation(BITE_ANIMATION);
