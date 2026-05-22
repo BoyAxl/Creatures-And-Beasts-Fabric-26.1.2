@@ -80,8 +80,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     private static final int ELDER_TRANSFORMATION_TICKS = 40;
     private static final int ELDER_TRANSFORMATION_EFFECT_TICK = 20;
     private static final double CACTEM_ALERT_VERTICAL_RANGE = 10.0D;
-    private static final int CACTEM_TARGET_SHARE_INTERVAL = 10;
-    private static final int CACTEM_ATTACK_DEBUG_INTERVAL = 40;
+    private static final int CACTEM_TARGET_SHARE_INTERVAL = 60;
     private static final int THROW_ANIMATION_FINISH_GRACE_TICKS = 24;
     private static final int IDLE_2_ANIMATION_DELAY_TICKS = 10;
     private static final float WALK_ANIMATION_MOVING_SPEED = 0.075F;
@@ -102,7 +101,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
 
     private int healCooldown = 0;
     private int elderTransformationTicks = 0;
-    private int lastWarriorDebugTick = Integer.MIN_VALUE;
     private int throwAnimationFinishTicks = 0;
     private int peacefulWarriorStationaryAnimationStartTick = Integer.MIN_VALUE;
 
@@ -198,7 +196,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         if (!this.level().isClientSide()) {
             this.clearInvalidCombatTarget();
             this.clearStaleWarriorCombatState();
-            this.logActiveWarriorCombatState();
         }
     }
 
@@ -207,22 +204,15 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         LivingEntity previousTarget = this.getTarget();
 
         if (target != null && !this.canKeepCactemCombatTarget(target)) {
-            this.forgetCombatTarget(target, "rejected");
+            this.forgetCombatTarget();
             return;
         }
 
         super.setTarget(target);
 
         LivingEntity currentTarget = this.getTarget();
-        if (!this.level().isClientSide() && previousTarget != currentTarget) {
-            if (currentTarget == null) {
-                if (previousTarget != null) {
-                    this.resetWarriorCombatState();
-                    CreaturesAndBeasts.LOGGER.info("Cactem at {} cleared combat target {}", this.blockPosition(), this.describeEntity(previousTarget));
-                }
-            } else {
-                CreaturesAndBeasts.LOGGER.info("Cactem at {} accepted combat target {} distanceSqr={} followRange={}", this.blockPosition(), this.describeEntity(currentTarget), this.distanceToSqr(currentTarget), this.getAttributeValue(Attributes.FOLLOW_RANGE));
-            }
+        if (!this.level().isClientSide() && previousTarget != currentTarget && currentTarget == null && previousTarget != null) {
+            this.resetWarriorCombatState();
         }
     }
 
@@ -261,7 +251,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     protected void dropFromLootTable(ServerLevel level, DamageSource damageSource, boolean hitByPlayer) {
         this.getLootTable().ifPresent(lootTable -> this.dropFromLootTable(level, damageSource, hitByPlayer, lootTable, itemStack -> {
             if (this.isElder() && itemStack.is(CNBItems.CACTEM_SPEAR.get())) {
-                CreaturesAndBeasts.LOGGER.info("Skipped elder Cactem spear death drop at {}", this.blockPosition());
                 return;
             }
 
@@ -344,7 +333,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
 
         double followDistance = this.getAttributeValue(Attributes.FOLLOW_RANGE);
         AABB alertArea = AABB.unitCubeFromLowerCorner(this.position()).inflate(followDistance, CACTEM_ALERT_VERTICAL_RANGE, followDistance);
-        int alertedCount = 0;
 
         for (CactemEntity nearbyCactem : this.level().getEntitiesOfClass(CactemEntity.class, alertArea)) {
             if (nearbyCactem == this
@@ -355,13 +343,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             }
 
             nearbyCactem.setTarget(target);
-            if (nearbyCactem.getTarget() == target) {
-                alertedCount++;
-            }
-        }
-
-        if (alertedCount > 0) {
-            CreaturesAndBeasts.LOGGER.info("Cactem warrior at {} alerted {} nearby warrior(s) toward {}", this.blockPosition(), alertedCount, target.getScoreboardName());
         }
     }
 
@@ -371,7 +352,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             return;
         }
 
-        this.forgetCombatTarget(target, "forgot");
+        this.forgetCombatTarget();
     }
 
     private void shareWarriorCombatTarget() {
@@ -388,9 +369,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         LivingEntity sharedTarget = this.findNearbyWarriorCombatTarget();
         if (sharedTarget != null) {
             this.setTarget(sharedTarget);
-            if (this.getTarget() == sharedTarget) {
-                CreaturesAndBeasts.LOGGER.info("Cactem warrior at {} adopted nearby warrior target {}", this.blockPosition(), this.describeEntity(sharedTarget));
-            }
         }
     }
 
@@ -431,22 +409,12 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         }
 
         this.resetWarriorCombatState();
-        CreaturesAndBeasts.LOGGER.info("Cactem warrior at {} cleared stale combat state with no target state={}", this.blockPosition(), this.getWarriorDebugState());
     }
 
-    private void logActiveWarriorCombatState() {
-        if (!this.canFightAsWarrior() || this.getTarget() == null) {
-            return;
-        }
-
-        this.logWarriorDebugState("active-target");
-    }
-
-    private void forgetCombatTarget(LivingEntity target, String reason) {
+    private void forgetCombatTarget() {
         super.setTarget(null);
         this.setLastHurtByMob(null);
         this.resetWarriorCombatState();
-        CreaturesAndBeasts.LOGGER.info("Cactem at {} {} invalid combat target {} state={}", this.blockPosition(), reason, this.describeEntity(target), this.getWarriorDebugState());
     }
 
     private void resetWarriorCombatState() {
@@ -476,48 +444,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         return !(target instanceof Player player) || (!player.isSpectator() && !player.isCreative());
     }
 
-    private void logWarriorDebugState(String reason) {
-        if (this.level().isClientSide() || this.tickCount - this.lastWarriorDebugTick < CACTEM_ATTACK_DEBUG_INTERVAL) {
-            return;
-        }
-
-        this.lastWarriorDebugTick = this.tickCount;
-        CreaturesAndBeasts.LOGGER.info("Cactem warrior debug [{}] at {} {}", reason, this.blockPosition(), this.getWarriorDebugState());
-    }
-
-    private String getWarriorDebugState() {
-        LivingEntity target = this.getTarget();
-        return "target=" + this.describeEntity(target)
-                + ", validTarget=" + (target != null && this.canKeepCactemCombatTarget(target))
-                + ", aggressive=" + this.isAggressive()
-                + ", attacking=" + this.isAttacking()
-                + ", usingItem=" + this.isUsingItem()
-                + ", spearShownData=" + this.entityData.get(SPEAR_SHOWN)
-                + ", expectedAnim=" + this.getExpectedWarriorAnimationState()
-                + ", navigation=" + this.getNavigation().isInProgress()
-                + ", delta=" + this.getDeltaMovement();
-    }
-
-    private String getExpectedWarriorAnimationState() {
-        if (this.isAttacking() || !this.entityData.get(SPEAR_SHOWN)) {
-            return "attack_horizontal";
-        }
-
-        if (this.isWalkAnimationMoving()) {
-            return "peaceful_moving_horizontal";
-        }
-
-        return "peaceful_idle_short_then_vertical";
-    }
-
-    private String describeEntity(@Nullable Entity entity) {
-        if (entity == null) {
-            return "none";
-        }
-
-        return entity.getScoreboardName() + "#" + entity.getId() + "@" + entity.blockPosition();
-    }
-
     private void spawnHealParticles() {
         for (float i = 0; i < Mth.TWO_PI; i += this.random.nextFloat() * 0.8F + 0.5F) {
             this.level().addParticle(CNBParticleTypes.CACTEM_HEAL_PARTICLE.get(), this.getX() + Mth.cos(i) * 1.25D, this.getY(), this.getZ() + Mth.sin(i) * 1.25D, 0.0D, 0.0D, 0.0D);
@@ -528,7 +454,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         this.elderTransformationTicks = ELDER_TRANSFORMATION_TICKS;
         this.setHealing(true);
         this.startUsingItem(this.getUsedItemHand());
-        CreaturesAndBeasts.LOGGER.info("Cactem at {} became an elder and started transformation healing", this.blockPosition());
     }
 
     private void tickElderTransformationEffect() {
@@ -644,11 +569,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     }
 
     public void setAttacking(boolean isAttacking) {
-        boolean wasAttacking = this.isAttacking();
         this.entityData.set(ATTACKING, isAttacking);
-        if (!this.level().isClientSide() && wasAttacking != isAttacking) {
-            CreaturesAndBeasts.LOGGER.info("Cactem warrior at {} attacking={} state={}", this.blockPosition(), isAttacking, this.getWarriorDebugState());
-        }
     }
 
     public boolean isSpearShown() {
@@ -657,11 +578,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     }
 
     public void setSpearShown(boolean isShown) {
-        boolean wasShown = this.entityData.get(SPEAR_SHOWN);
         this.entityData.set(SPEAR_SHOWN, isShown);
-        if (!this.level().isClientSide() && wasShown != isShown) {
-            CreaturesAndBeasts.LOGGER.info("Cactem warrior at {} spearShownData={} expectedAnim={}", this.blockPosition(), isShown, this.getExpectedWarriorAnimationState());
-        }
     }
 
     public boolean isHealing() {
@@ -841,7 +758,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             CactemEntity followTarget = null;
             double closestElderDistance = Double.MAX_VALUE;
 
-            for(CactemEntity nearbyCactem : list) {
+            for (CactemEntity nearbyCactem : list) {
                 if (nearbyCactem.isElder()) {
                     double distanceToCactem = this.cactem.distanceToSqr(nearbyCactem);
                     if (!(distanceToCactem > closestElderDistance)) {
@@ -992,7 +909,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.navigation.stop();
             this.entityIn.setTrading(true);
             this.entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, player.getEyePosition());
-            CreaturesAndBeasts.LOGGER.info("Cactem trade started at {} after accepting {} directly from {}", this.entityIn.blockPosition(), Items.TOTEM_OF_UNDYING, player.getScoreboardName());
             return true;
         }
 
@@ -1012,7 +928,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             if (entityIn.level() instanceof ServerLevel) {
                 BehaviorUtils.throwItem(this.entityIn, returnItem, this.getRewardTargetPosition());
             }
-            CreaturesAndBeasts.LOGGER.info("Cactem trade completed at {} with reward {} toward {}", this.entityIn.blockPosition(), returnItem, this.tradeTarget == null ? "no target" : this.tradeTarget.getScoreboardName());
             this.entityIn.playSound(SoundEvents.ITEM_PICKUP, 0.8F, 1.0F);
         }
 
@@ -1088,7 +1003,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
 
                     if (!this.entityIn.isTrading() && !itemInstance.isRemoved()) {
                         ItemStack offeredStack = itemInstance.getItem();
-                        int offeredCount = offeredStack.getCount();
                         this.tradeTarget = this.findTradeTarget(itemInstance);
                         this.entityIn.setTrading(true);
                         offeredStack.shrink(1);
@@ -1097,7 +1011,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
                             itemInstance.discard();
                         }
 
-                        CreaturesAndBeasts.LOGGER.info("Cactem trade started at {} after accepting {} from stack count {}", this.entityIn.blockPosition(), Items.TOTEM_OF_UNDYING, offeredCount);
                         entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, itemInstance.position());
                         this.tradeTime = 54;
                     }
@@ -1131,7 +1044,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         private int healAlignTicks = 0;
         private int healAlignedTicks = 0;
         private boolean healFacingLocked = false;
-        private boolean loggedMovingHealTarget = false;
         private float lockedHealYRot;
         private float lockedHealXRot;
 
@@ -1157,8 +1069,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
                 livingentity = null;
             }
 
-            boolean cactemNeedsHealing = this.updateHealTarget();
-            if (cactemNeedsHealing && this.cactem.healCooldown <= 0) {
+            if (this.cactem.healCooldown <= 0 && this.updateHealTarget()) {
                 return true;
             } else if (livingentity == null) {
                 return false;
@@ -1187,7 +1098,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.healAlignTicks = 0;
             this.healAlignedTicks = 0;
             this.healFacingLocked = false;
-            this.loggedMovingHealTarget = false;
             this.cactem.clearHealFacing();
             this.cactem.stopUsingItem();
         }
@@ -1210,7 +1120,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
                     this.cactem.stopUsingItem();
                     this.healFacingLocked = false;
                     this.healAlignedTicks = 0;
-                    this.loggedMovingHealTarget = false;
                     this.cactem.clearHealFacing();
                     this.cactem.healCooldown = this.healIntervalMin + this.cactem.random.nextInt(this.healIntervalDiff + 1);
                 }
@@ -1261,10 +1170,10 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.healAlignTicks++;
 
             if (this.isFacingHealTarget()) {
-                this.lockHealFacing("aligned");
+                this.lockHealFacing();
             } else if (this.healAlignTicks >= MAX_HEAL_ALIGN_TICKS) {
                 this.faceHealTarget();
-                this.lockHealFacing("forced");
+                this.lockHealFacing();
             }
         }
 
@@ -1277,9 +1186,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.healAlignTicks = 0;
             this.healAlignedTicks = 0;
             this.healFacingLocked = false;
-            this.loggedMovingHealTarget = false;
             this.cactem.clearHealFacing();
-            CreaturesAndBeasts.LOGGER.info("Elder Cactem at {} started heal alignment toward {} with yawDiff={}", this.cactem.blockPosition(), this.healTarget.blockPosition(), this.getHealTargetYawDiff());
         }
 
         private boolean ensureHealTarget() {
@@ -1332,7 +1239,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             return this.getHealTargetYawDiff() <= HEAL_START_YAW_TOLERANCE;
         }
 
-        private void lockHealFacing(String reason) {
+        private void lockHealFacing() {
             if (this.healTarget == null) {
                 this.cancelHealPreparation();
                 return;
@@ -1344,7 +1251,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.healAlignedTicks = 0;
             this.cactem.setHealFacing(this.lockedHealYRot, this.lockedHealXRot, true);
             this.holdHealFacing();
-            CreaturesAndBeasts.LOGGER.info("Elder Cactem at {} {} heal alignment toward {} after {} ticks with yawDiff={}; synced render yaw={} and holding {} ticks before spell", this.cactem.blockPosition(), reason, this.healTarget.blockPosition(), this.healAlignTicks, this.getHealTargetYawDiff(), this.lockedHealYRot, HEAL_ALIGNED_HOLD_TICKS);
         }
 
         private void startHealSpell() {
@@ -1361,18 +1267,11 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.cactem.setHealFacing(this.lockedHealYRot, this.lockedHealXRot, true);
             this.cactem.setHealing(true);
             this.cactem.startUsingItem(this.cactem.getUsedItemHand());
-            CreaturesAndBeasts.LOGGER.info("Elder Cactem at {} started heal spell toward {} after visible alignment hold with final yawDiff={}", this.cactem.blockPosition(), this.healTarget.blockPosition(), this.getHealTargetYawDiff());
         }
 
         private void trackLockedHealFacing() {
             if (!this.healFacingLocked || this.healTarget == null) {
                 return;
-            }
-
-            float yawDiff = this.getHealTargetYawDiff();
-            if (yawDiff > HEAL_START_YAW_TOLERANCE && !this.loggedMovingHealTarget) {
-                this.loggedMovingHealTarget = true;
-                CreaturesAndBeasts.LOGGER.info("Elder Cactem at {} updated heal facing toward moving target {} with yawDiff={}", this.cactem.blockPosition(), this.healTarget.blockPosition(), yawDiff);
             }
 
             this.lockedHealYRot = Mth.approachDegrees(this.lockedHealYRot, this.getHealTargetYRot(), HEAL_ALIGN_ROTATION_STEP);
@@ -1397,7 +1296,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.healAlignTicks = 0;
             this.healAlignedTicks = 0;
             this.healFacingLocked = false;
-            this.loggedMovingHealTarget = false;
             this.cactem.clearHealFacing();
             this.healTarget = null;
         }
@@ -1438,7 +1336,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             CactemEntity closestInjuredCactem = null;
             double closestDistance = Double.MAX_VALUE;
 
-            for(CactemEntity nearbyCactem : list) {
+            for (CactemEntity nearbyCactem : list) {
                 if (nearbyCactem.canTriggerElderHeal()) {
                     double distance = elder.distanceToSqr(nearbyCactem);
 
@@ -1454,13 +1352,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     }
 
     static class RangedSpearAttackGoal extends Goal {
-        private static final int PHASE_IDLE = 0;
-        private static final int PHASE_CHASING = 1;
-        private static final int PHASE_STRAFING = 2;
-        private static final int PHASE_WINDUP = 3;
-        private static final int PHASE_THROW = 4;
-        private static final int PHASE_LOST_SIGHT = 5;
-
         private final CactemEntity cactem;
         private final double speedModifier;
         private final int attackIntervalMin;
@@ -1470,7 +1361,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         private boolean strafingClockwise;
         private boolean strafingBackwards;
         private int strafingTime = -1;
-        private int phase = PHASE_IDLE;
 
         public RangedSpearAttackGoal(CactemEntity cactem, double speedModifier, int attackIntervalMin, float attackRadius) {
             this.cactem = cactem;
@@ -1494,7 +1384,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.cactem.setAggressive(true);
             LivingEntity target = this.cactem.getTarget();
             if (target != null) {
-                this.setPhase(PHASE_CHASING, "start", target, this.cactem.distanceToSqr(target), this.cactem.getSensing().hasLineOfSight(target));
                 this.cactem.alertNearbyCactemWarriors(target);
             }
         }
@@ -1506,7 +1395,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.cactem.setAttacking(false);
             this.cactem.setSpearShown(true);
             this.cactem.stopUsingItem();
-            this.cactem.logWarriorDebugState("spear-goal-stop");
         }
 
         private void resetState() {
@@ -1515,7 +1403,6 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.strafingTime = -1;
             this.strafingClockwise = false;
             this.strafingBackwards = false;
-            this.phase = PHASE_IDLE;
         }
 
         public boolean requiresUpdateEveryTick() {
@@ -1526,7 +1413,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             LivingEntity targetEntity = this.cactem.getTarget();
             if (targetEntity != null) {
                 if (!this.cactem.canKeepCactemCombatTarget(targetEntity)) {
-                    this.cactem.forgetCombatTarget(targetEntity, "goal-forgot");
+                    this.cactem.forgetCombatTarget();
                     return;
                 }
 
@@ -1546,11 +1433,9 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
                 if (d0 > (double)this.attackRadiusSqr || this.seeTime < 20) {
                     this.cactem.getNavigation().moveTo(targetEntity, this.speedModifier);
                     this.strafingTime = -1;
-                    this.setPhase(PHASE_CHASING, "chasing", targetEntity, d0, flag);
                 } else {
                     this.cactem.getNavigation().stop();
                     ++this.strafingTime;
-                    this.setPhase(PHASE_STRAFING, "strafing", targetEntity, d0, flag);
                 }
 
                 if (this.strafingTime >= 20) {
@@ -1581,14 +1466,12 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
 
                 if (this.cactem.isUsingItem()) {
                     if (!flag && this.seeTime < -60) {
-                        this.setPhase(PHASE_LOST_SIGHT, "lost-sight-cancel", targetEntity, d0, false);
                         this.cactem.setAttacking(false);
                         this.cactem.setSpearShown(true);
                         this.cactem.stopUsingItem();
                     } else if (flag) {
                         int i = this.cactem.getTicksUsingItem();
                         if (i >= 6) {
-                            this.setPhase(PHASE_THROW, "throw", targetEntity, d0, true);
                             this.cactem.setSpearShown(false);
                             this.cactem.setAttacking(false);
                             this.cactem.stopUsingItem();
@@ -1597,31 +1480,10 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
                         }
                     }
                 } else if (--this.attackTime <= 0 && this.seeTime >= -60) {
-                    this.setPhase(PHASE_WINDUP, "windup", targetEntity, d0, flag);
                     this.cactem.setAttacking(true);
                     this.cactem.startUsingItem(this.cactem.getUsedItemHand());
                 }
             }
-        }
-
-        private void setPhase(int phase, String reason, LivingEntity target, double distanceSqr, boolean hasLineOfSight) {
-            if (this.phase == phase) {
-                return;
-            }
-
-            this.phase = phase;
-            CreaturesAndBeasts.LOGGER.info(
-                    "Cactem warrior at {} attackPhase={} target={} distanceSqr={} attackRadiusSqr={} seeTime={} lineOfSight={} strafingTime={} state={}",
-                    this.cactem.blockPosition(),
-                    reason,
-                    this.cactem.describeEntity(target),
-                    distanceSqr,
-                    this.attackRadiusSqr,
-                    this.seeTime,
-                    hasLineOfSight,
-                    this.strafingTime,
-                    this.cactem.getWarriorDebugState()
-            );
         }
     }
 

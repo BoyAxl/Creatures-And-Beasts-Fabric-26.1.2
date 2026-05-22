@@ -22,8 +22,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.block.Block;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.infernalstudios.config.Config;
 
 import java.io.IOException;
@@ -37,7 +35,6 @@ public class CreaturesAndBeasts {
     }
 
     public static final String MOD_ID = "cnb";
-    public static final Logger LOGGER = LogManager.getLogger();
 
     private static final CNBDeferredRegister<CreativeModeTab> TAB_REGISTRY = CNBDeferredRegister.create(MOD_ID, BuiltInRegistries.CREATIVE_MODE_TAB);
     public static final CNBRegistrySupplier<CreativeModeTab> TAB = TAB_REGISTRY.register("tab", () -> CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
@@ -77,12 +74,6 @@ public class CreaturesAndBeasts {
         } catch (IllegalStateException | IllegalArgumentException | IOException e) {
             throw new RuntimeException("Failed to load Creatures and Beasts config", e);
         }
-
-        CNBConfig.CONFIG.onReload(stage -> {
-            if (stage == Config.ReloadStage.PRE) {
-                CreaturesAndBeasts.LOGGER.debug("Reloading Creatures and Beasts config");
-            }
-        });
 
         this.events.createEntityAttributes();
 

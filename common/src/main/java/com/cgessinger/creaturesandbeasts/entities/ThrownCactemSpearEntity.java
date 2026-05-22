@@ -1,6 +1,5 @@
 package com.cgessinger.creaturesandbeasts.entities;
 
-import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.init.CNBEntityTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBItems;
 import net.minecraft.server.level.ServerLevel;
@@ -41,13 +40,6 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
         ItemStack spear = this.getSpear();
         this.entityData.set(IS_FOIL, spear.hasFoil());
         this.entityData.set(ID_LOYALTY, this.getLoyaltyFromItem(spear));
-        if (itemStack.isEmpty()) {
-            CreaturesAndBeasts.LOGGER.info(
-                    "Normalized empty Cactem spear projectile item at {} for {}",
-                    this.blockPosition(),
-                    entity.getScoreboardName()
-            );
-        }
     }
 
     @Override
@@ -62,10 +54,6 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
         super.readAdditionalSaveData(input);
         if (this.getPickupItemStackOrigin().isEmpty()) {
             this.setPickupItemStack(this.getDefaultPickupItem());
-            CreaturesAndBeasts.LOGGER.info(
-                    "Repaired empty Cactem spear projectile item while loading at {}",
-                    this.blockPosition()
-            );
         }
         ItemStack spear = this.getSpear();
         this.dealtDamage = input.getBooleanOr("DealtDamage", false);
