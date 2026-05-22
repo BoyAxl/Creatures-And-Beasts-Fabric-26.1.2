@@ -1,5 +1,6 @@
 package com.cgessinger.creaturesandbeasts.entities;
 
+import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.init.CNBEntityTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBItems;
 import net.minecraft.server.level.ServerLevel;
@@ -36,9 +37,17 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
     }
 
     public ThrownCactemSpearEntity(Level level, LivingEntity entity, ItemStack itemStack) {
-        super(CNBEntityTypes.THROWN_CACTEM_SPEAR.get(), entity, level, itemStack.copy(), null);
-        this.entityData.set(IS_FOIL, itemStack.hasFoil());
-        this.entityData.set(ID_LOYALTY, this.getLoyaltyFromItem(itemStack));
+        super(CNBEntityTypes.THROWN_CACTEM_SPEAR.get(), entity, level, copySpearOrDefault(itemStack), null);
+        ItemStack spear = this.getSpear();
+        this.entityData.set(IS_FOIL, spear.hasFoil());
+        this.entityData.set(ID_LOYALTY, this.getLoyaltyFromItem(spear));
+        if (itemStack.isEmpty()) {
+            CreaturesAndBeasts.LOGGER.info(
+                    "Normalized empty Cactem spear projectile item at {} for {}",
+                    this.blockPosition(),
+                    entity.getScoreboardName()
+            );
+        }
     }
 
     @Override
@@ -48,12 +57,20 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
         builder.define(IS_FOIL, false);
     }
 
-
     @Override
     protected void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
+        if (this.getPickupItemStackOrigin().isEmpty()) {
+            this.setPickupItemStack(this.getDefaultPickupItem());
+            CreaturesAndBeasts.LOGGER.info(
+                    "Repaired empty Cactem spear projectile item while loading at {}",
+                    this.blockPosition()
+            );
+        }
+        ItemStack spear = this.getSpear();
         this.dealtDamage = input.getBooleanOr("DealtDamage", false);
-        this.entityData.set(ID_LOYALTY, this.getLoyaltyFromItem(this.getSpear()));
+        this.entityData.set(IS_FOIL, spear.hasFoil());
+        this.entityData.set(ID_LOYALTY, this.getLoyaltyFromItem(spear));
     }
 
     @Override
@@ -115,6 +132,10 @@ public class ThrownCactemSpearEntity extends AbstractArrow {
 
     public ItemStack getSpear() {
         return this.getPickupItemStackOrigin();
+    }
+
+    private static ItemStack copySpearOrDefault(ItemStack stack) {
+        return stack.isEmpty() ? new ItemStack(CNBItems.CACTEM_SPEAR.get()) : stack.copy();
     }
 
     @Nullable

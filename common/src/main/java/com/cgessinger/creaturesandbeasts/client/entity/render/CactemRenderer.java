@@ -30,6 +30,7 @@ import java.util.List;
 @Environment(EnvType.CLIENT)
 public class CactemRenderer extends GeoEntityRenderer<CactemEntity, LivingEntityRenderState> {
     private static final DataTicket<Boolean> SPEAR_SHOWN = DataTickets.create("cnb_cactem_spear_shown", Boolean.class);
+
     public CactemRenderer(EntityRendererProvider.Context renderManager) {
         super(renderManager, new CactemModel());
         this.withRenderLayer(new CactemHeldItemLayer(renderManager, this));
@@ -39,6 +40,17 @@ public class CactemRenderer extends GeoEntityRenderer<CactemEntity, LivingEntity
     @Override
     public RenderType getRenderType(LivingEntityRenderState renderState, Identifier texture) {
         return RenderTypes.entityCutout(texture);
+    }
+
+    @Override
+    public void extractRenderState(CactemEntity animatable, LivingEntityRenderState renderState, float partialTick) {
+        super.extractRenderState(animatable, renderState, partialTick);
+
+        if (animatable.isHealFacingLocked()) {
+            renderState.bodyRot = animatable.getHealFacingYRot();
+            renderState.yRot = 0.0F;
+            renderState.xRot = animatable.getHealFacingXRot();
+        }
     }
 
     @Override
