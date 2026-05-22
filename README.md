@@ -51,7 +51,7 @@ This port was prepared with help from **OpenAI Codex** as a coding assistant.
 AI assistance was used for:
 
 - Comparing the Fabric port against the original Forge 1.19.2 jar behavior
-- Translating Forge/Architectury flows into Fabric APIs
+- Translating original loader-specific flows into Fabric APIs
 - Updating rendering and animation paths for Geckolib 5
 - Debugging in-game issues from logs and runtime testing
 

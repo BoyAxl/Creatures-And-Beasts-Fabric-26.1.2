@@ -14,7 +14,6 @@ allprojects {
 
     repositories {
         maven("https://maven.fabricmc.net/")
-        maven("https://maven.architectury.dev/")
         maven("https://api.modrinth.com/maven")
         maven("https://maven.infernalstudios.org/releases")
     }
