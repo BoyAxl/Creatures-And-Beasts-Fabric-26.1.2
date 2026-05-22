@@ -3,6 +3,7 @@ package com.cgessinger.creaturesandbeasts.entities;
 import com.cgessinger.creaturesandbeasts.init.CNBMinipadTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import com.cgessinger.creaturesandbeasts.util.MinipadType;
+import com.cgessinger.creaturesandbeasts.util.ShearableMobInteraction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -15,6 +16,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -31,12 +34,15 @@ import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 import com.geckolib.animatable.GeoEntity;
 import com.geckolib.animatable.GeoAnimatable;
@@ -117,7 +123,6 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new MinipadFloatGoal(this));
         this.goalSelector.addGoal(1, new MinipadPanicGoal(this, 1.25D));
-        //this.goalSelector.addGoal(2, new TryFindWaterGoal(this));
         this.goalSelector.addGoal(2, new MinipadTryFindWaterGoal(this, 1.0D));
         this.goalSelector.addGoal(3, new MinipadRandomStrollGoal(this, 1.0D, 60, 240));
         this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 8.0F));
@@ -202,10 +207,10 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     }
 
-    /*@Override
-    public boolean canBeCollidedWith() {
+    @Override
+    public boolean canBeCollidedWith(Entity entity) {
         return this.isAlive();
-    }*/
+    }
 
     @Override
     public boolean canBreatheUnderwater() {
@@ -219,13 +224,20 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     private void floatMinipad() {
         if (this.isInWater()) {
-            if (!this.level().getFluidState(this.blockPosition().above()).is(FluidTags.WATER)) {
+            CollisionContext collisionContext = CollisionContext.of(this);
+            if (collisionContext.isAbove(this.getLiquidCollisionShape(), this.blockPosition(), true)
+                    && !this.level().getFluidState(this.blockPosition().above()).is(FluidTags.WATER)) {
                 this.setOnGround(true);
             } else {
                 this.setDeltaMovement(this.getDeltaMovement().scale(0.5D).add(0.0D, 0.1D, 0.0D));
             }
         }
 
+    }
+
+    @Override
+    public VoxelShape getLiquidCollisionShape() {
+        return Block.column(16.0D, 0.0D, 8.0D);
     }
 
     @Override
@@ -271,7 +283,8 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     @Override
     public void shear(ServerLevel level, SoundSource source, ItemStack stack) {
-        this.level().playSound(null, this, SoundEvents.SHEEP_SHEAR, source, 1.0F, 1.0F);
+        level.playSound(null, this, SoundEvents.SHEEP_SHEAR, source, 1.0F, 1.0F);
+        this.setSheared(true);
 
         long time = level.getDefaultClockTime() % 24000L;
         ItemEntity item = this.spawnAtLocation(level, time > 13000 ? new ItemStack(this.getMinipadType().getGlowShearItem()) : new ItemStack(this.getMinipadType().getShearItem()), 1);
@@ -284,6 +297,12 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     @Override
     public boolean readyForShearing() {
         return this.isAlive() && !this.getSheared();
+    }
+
+    @Override
+    public InteractionResult mobInteract(Player player, InteractionHand hand) {
+        return ShearableMobInteraction.tryShear(this, player, hand)
+                .orElseGet(() -> super.mobInteract(player, hand));
     }
 
     @Override

@@ -4,6 +4,7 @@ import com.cgessinger.creaturesandbeasts.entities.ai.FindWaterOneDeepGoal;
 import com.cgessinger.creaturesandbeasts.init.CNBLilytadTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import com.cgessinger.creaturesandbeasts.util.LilytadType;
+import com.cgessinger.creaturesandbeasts.util.ShearableMobInteraction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -16,6 +17,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -34,7 +37,6 @@ import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.ServerLevelAccessor;
-import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
@@ -220,15 +222,20 @@ public class LilytadEntity extends Animal implements Shearable, GeoEntity {
 
     @Override
     public boolean readyForShearing() {
-        return !this.getSheared();
+        return this.isAlive() && !this.getSheared();
     }
 
     @Override
     public void shear(ServerLevel level, SoundSource source, ItemStack itemStack) {
-        this.level().playSound(null, this, SoundEvents.SHEEP_SHEAR, source, 1.0F, 1.0F);
-        this.gameEvent(GameEvent.SHEAR);
+        level.playSound(null, this, SoundEvents.SHEEP_SHEAR, source, 1.0F, 1.0F);
         this.setSheared(true);
         this.spawnAtLocation(level, new ItemStack(this.getLilytadType().getShearItem()));
+    }
+
+    @Override
+    public InteractionResult mobInteract(Player player, InteractionHand hand) {
+        return ShearableMobInteraction.tryShear(this, player, hand)
+                .orElseGet(() -> super.mobInteract(player, hand));
     }
 
     @Override
