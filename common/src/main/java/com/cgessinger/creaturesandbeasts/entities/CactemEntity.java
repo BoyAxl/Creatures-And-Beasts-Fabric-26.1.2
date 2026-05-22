@@ -19,10 +19,13 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.ai.behavior.BehaviorUtils;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -38,6 +41,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -285,6 +289,25 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     }
 
     @Override
+    public InteractionResult mobInteract(Player player, InteractionHand hand) {
+        ItemStack itemStack = player.getItemInHand(hand);
+
+        if (this.isElder() && itemStack.is(Items.TOTEM_OF_UNDYING) && !this.isTrading() && !this.isHealing()) {
+            if (this.level().isClientSide()) {
+                return InteractionResult.SUCCESS;
+            }
+
+            if (this.tradeGoal.tryStartDirectTrade(player)) {
+                this.usePlayerItem(player, hand, itemStack);
+                this.gameEvent(GameEvent.ENTITY_INTERACT, player);
+                return InteractionResult.SUCCESS_SERVER;
+            }
+        }
+
+        return super.mobInteract(player, hand);
+    }
+
+    @Override
     public SoundEvent getAmbientSound() {
         return CNBSoundEvents.CACTEM_AMBIENT.get();
     }
@@ -513,8 +536,12 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     }
 
     static class TradeGoal extends Goal {
+        @Nullable
         protected Path path;
+        @Nullable
         protected ItemEntity itemInstance;
+        @Nullable
+        protected Entity tradeTarget;
         protected double tradeTime;
         protected double tradeDelay;
 
@@ -534,6 +561,10 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
 
         @Override
         public boolean canUse() {
+            if (this.entityIn.isTrading() && this.tradeTarget != null && this.itemInstance == null) {
+                return true;
+            }
+
             if (this.itemInstance == null && this.entityIn.getTarget() == null) {
                 List<ItemEntity> list = this.entityIn.level().getEntitiesOfClass(ItemEntity.class, this.entityIn.getBoundingBox().inflate(this.range, 3.0D, this.range));
 
@@ -552,6 +583,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         @Override
         public void stop() {
             this.itemInstance = null;
+            this.tradeTarget = null;
             this.path = null;
             this.navigation.stop();
             this.entityIn.setTrading(false);
@@ -559,17 +591,42 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
 
         @Override
         public void start() {
-            this.navigation.moveTo(this.path, this.speed);
+            if (this.path != null) {
+                this.navigation.moveTo(this.path, this.speed);
+            } else {
+                this.navigation.stop();
+            }
         }
 
         @Override
         public boolean canContinueToUse() {
-            return (!this.navigation.isDone() || this.tradeTime > 0) && (!this.itemInstance.isRemoved() || this.entityIn.isTrading());
+            if (this.entityIn.isTrading()) {
+                return this.tradeTime > 0;
+            }
+
+            return this.itemInstance != null && (!this.navigation.isDone() || this.tradeTime > 0) && !this.itemInstance.isRemoved();
         }
 
         @Override
         public boolean isInterruptable() {
             return this.tradeTime <= 0;
+        }
+
+        public boolean tryStartDirectTrade(Player player) {
+            if (!this.entityIn.isElder() || this.entityIn.isTrading() || this.entityIn.isHealing() || this.entityIn.getTarget() != null) {
+                return false;
+            }
+
+            this.itemInstance = null;
+            this.path = null;
+            this.tradeTarget = player;
+            this.tradeTime = 54;
+            this.tradeDelay = 0;
+            this.navigation.stop();
+            this.entityIn.setTrading(true);
+            this.entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, player.getEyePosition());
+            CreaturesAndBeasts.LOGGER.info("Cactem trade started at {} after accepting {} directly from {}", this.entityIn.blockPosition(), Items.TOTEM_OF_UNDYING, player.getScoreboardName());
+            return true;
         }
 
         public void trade() {
@@ -585,38 +642,97 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
                 returnItem = new ItemStack(Items.DEAD_BUSH);
             }
 
-            if (entityIn.level() instanceof ServerLevel serverLevel) {
-                entityIn.spawnAtLocation(serverLevel, returnItem);
+            if (entityIn.level() instanceof ServerLevel) {
+                BehaviorUtils.throwItem(this.entityIn, returnItem, this.getRewardTargetPosition());
             }
+            CreaturesAndBeasts.LOGGER.info("Cactem trade completed at {} with reward {} toward {}", this.entityIn.blockPosition(), returnItem, this.tradeTarget == null ? "no target" : this.tradeTarget.getScoreboardName());
             this.entityIn.playSound(SoundEvents.ITEM_PICKUP, 0.8F, 1.0F);
+        }
+
+        private Vec3 getRewardTargetPosition() {
+            Entity target = this.tradeTarget;
+
+            if (target != null && target.isAlive() && !target.isRemoved()) {
+                return target.position().add(0.0D, target.getBbHeight() * 0.5D, 0.0D);
+            }
+
+            return this.entityIn.position().add(this.entityIn.getLookAngle());
+        }
+
+        private Vec3 getTradeLookPosition() {
+            Entity target = this.tradeTarget;
+
+            if (target != null && !target.isRemoved()) {
+                return target.getEyePosition();
+            }
+
+            if (this.itemInstance != null) {
+                return this.itemInstance.position();
+            }
+
+            return this.entityIn.position().add(this.entityIn.getLookAngle());
+        }
+
+        private void tickActiveTrade() {
+            if (--this.tradeTime <= 0) {
+                trade();
+                tradeDelay = 20;
+            } else if (tradeTime % 3 == 0) {
+                entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, this.getTradeLookPosition());
+                entityIn.level().addParticle(new ItemParticleOption(ParticleTypes.ITEM, Items.TOTEM_OF_UNDYING), entityIn.getRandomX(0.5F) + entityIn.getLookAngle().x / 2.0D, entityIn.getRandomY(), entityIn.getRandomZ(0.5F) + entityIn.getLookAngle().z / 2.0D, 4D, 0D, 0D);
+            }
+        }
+
+        @Nullable
+        private Entity findTradeTarget(ItemEntity itemEntity) {
+            Entity owner = itemEntity.getOwner();
+
+            if (owner instanceof Player player && player.isAlive() && !player.isSpectator()) {
+                return player;
+            }
+
+            Player nearestPlayer = null;
+            double nearestDistance = Double.MAX_VALUE;
+
+            for (Player player : this.entityIn.level().getEntitiesOfClass(Player.class, this.entityIn.getBoundingBox().inflate(this.range, 4.0D, this.range))) {
+                if (player.isSpectator()) {
+                    continue;
+                }
+
+                double distance = player.distanceToSqr(this.entityIn);
+
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestPlayer = player;
+                }
+            }
+
+            return nearestPlayer;
         }
 
         @Override
         public void tick() {
             if (tradeDelay <= 0) {
-                if (this.entityIn.distanceToSqr(itemInstance) < 2.0D) {
+                if (this.entityIn.isTrading()) {
+                    this.navigation.setSpeedModifier(0.0D);
+                    this.tickActiveTrade();
+                } else if (this.itemInstance != null && this.entityIn.distanceToSqr(itemInstance) < 2.0D) {
                     this.navigation.setSpeedModifier(0.0D);
 
                     if (!this.entityIn.isTrading() && !itemInstance.isRemoved()) {
+                        ItemStack offeredStack = itemInstance.getItem();
+                        int offeredCount = offeredStack.getCount();
+                        this.tradeTarget = this.findTradeTarget(itemInstance);
                         this.entityIn.setTrading(true);
-                        itemInstance.getItem().shrink(1);
+                        offeredStack.shrink(1);
 
-                        if (itemInstance.getItem().isEmpty()) {
+                        if (offeredStack.isEmpty()) {
                             itemInstance.discard();
                         }
 
+                        CreaturesAndBeasts.LOGGER.info("Cactem trade started at {} after accepting {} from stack count {}", this.entityIn.blockPosition(), Items.TOTEM_OF_UNDYING, offeredCount);
                         entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, itemInstance.position());
                         this.tradeTime = 54;
-
-                    } else {
-                        if (--this.tradeTime <= 0) {
-                            trade();
-                            tradeDelay = 20;
-
-                        } else if (tradeTime % 3 == 0) {
-                            entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, itemInstance.position());
-                            entityIn.level().addParticle(new ItemParticleOption(ParticleTypes.ITEM, itemInstance.getItem().getItem()), entityIn.getRandomX(0.5F) + entityIn.getLookAngle().x / 2.0D, entityIn.getRandomY(), entityIn.getRandomZ(0.5F) + entityIn.getLookAngle().z / 2.0D, 4D, 0D, 0D);
-                        }
                     }
 
                 } else {

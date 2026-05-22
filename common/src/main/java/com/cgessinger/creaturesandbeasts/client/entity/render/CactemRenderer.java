@@ -83,6 +83,7 @@ public class CactemRenderer extends GeoEntityRenderer<CactemEntity, LivingEntity
         @Override
         protected void submitItemStackRender(PoseStack poseStack, GeoBone bone, ItemStackRenderState itemRenderState, ItemDisplayContext displayContext, LivingEntityRenderState renderState, SubmitNodeCollector submitNodeCollector, int packedLight) {
             poseStack.pushPose();
+            bone.translateAwayFromPivotPoint(poseStack);
             poseStack.scale(0.5F, 0.5F, 0.5F);
             poseStack.translate(-0.4F, 0.3F, -0.1F);
             poseStack.mulPose(Axis.XP.rotationDegrees(-90.0F));
