@@ -33,10 +33,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -54,6 +56,9 @@ import com.geckolib.animation.RawAnimation;
 import com.geckolib.animation.object.PlayState;
 import com.geckolib.util.GeckoLibUtil;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 
 public class MinipadEntity extends Animal implements Shearable, GeoEntity {
@@ -67,11 +72,13 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     private int shearedTimer;
+    private boolean returningToWater;
 
     public MinipadEntity(EntityType<MinipadEntity> type, Level worldIn) {
         super(type, worldIn);
         this.shearedTimer = 0;
         this.setPathfindingMalus(PathType.WATER, 0.0F);
+        this.getNavigation().setCanFloat(true);
 
         this.lookControl = new LookControl(this) {
             @Override
@@ -123,7 +130,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new MinipadFloatGoal(this));
         this.goalSelector.addGoal(1, new MinipadPanicGoal(this, 1.25D));
-        this.goalSelector.addGoal(2, new MinipadTryFindWaterGoal(this, 1.0D));
+        this.goalSelector.addGoal(2, new MinipadReturnToWaterGoal(this, 1.0D));
         this.goalSelector.addGoal(3, new MinipadRandomStrollGoal(this, 1.0D, 60, 240));
         this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 8.0F));
         this.goalSelector.addGoal(5, new RandomLookAroundGoal(this));
@@ -219,7 +226,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     @Override
     public boolean canStandOnFluid(FluidState fluidState) {
-        return fluidState.is(FluidTags.WATER);
+        return !this.returningToWater && fluidState.is(FluidTags.WATER);
     }
 
     private void floatMinipad() {
@@ -311,7 +318,31 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     }
 
     public boolean shouldLookAround() {
-        return !this.level().getFluidState(this.blockPosition()).is(FluidTags.WATER);
+        return !this.isInWaterHabitat();
+    }
+
+    private boolean isTouchingWater() {
+        BlockPos pos = this.blockPosition();
+        return this.getFluidHeight(FluidTags.WATER) > 0.0D
+                || this.isInWater()
+                || this.level().getFluidState(pos).is(FluidTags.WATER);
+    }
+
+    private boolean isStandingOnWaterSurface() {
+        BlockPos pos = this.blockPosition();
+        return this.level().getBlockState(pos).isAir() && this.level().getFluidState(pos.below()).is(FluidTags.WATER);
+    }
+
+    private boolean isInWaterHabitat() {
+        return this.isTouchingWater() || this.isStandingOnWaterSurface();
+    }
+
+    private boolean isWaterStrollTarget(BlockPos pos) {
+        return this.level().getFluidState(pos).is(FluidTags.WATER);
+    }
+
+    private void setReturningToWater(boolean returningToWater) {
+        this.returningToWater = returningToWater;
     }
 
     @Override
@@ -465,7 +496,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
                         return false;
                     }
 
-                    int i = this.minipad.isInWater() ? this.intervalWater : this.intervalLand;
+                    int i = this.minipad.isInWaterHabitat() ? this.intervalWater : this.intervalLand;
                     if (this.mob.getRandom().nextInt(reducedTickDelay(i)) != 0) {
                         return false;
                     }
@@ -487,12 +518,24 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         @Override
         protected Vec3 getPosition() {
             boolean flag = GoalUtils.mobRestricted(this.minipad, 10);
-            Vec3 vec3 = RandomPos.generateRandomPos(this.minipad, () -> {
+
+            if (this.minipad.isInWaterHabitat()) {
+                return RandomPos.generateRandomPos(this.minipad, () -> {
+                    BlockPos blockpos = RandomPos.generateRandomDirection(this.minipad.getRandom(), 10, 1);
+                    return generateWaterPosTowardDirection(this.minipad, 10, flag, blockpos);
+                });
+            }
+
+            return RandomPos.generateRandomPos(this.minipad, () -> {
                 BlockPos blockpos = RandomPos.generateRandomDirection(this.minipad.getRandom(), 10, 7);
                 return generateRandomPosTowardDirection(this.minipad, 10, flag, blockpos);
             });
+        }
 
-            return vec3;
+        @Nullable
+        private static BlockPos generateWaterPosTowardDirection(MinipadEntity minipad, int horizontalRange, boolean flag, BlockPos posTowards) {
+            BlockPos blockpos = generateRandomPosTowardDirection(minipad, horizontalRange, flag, posTowards);
+            return blockpos != null && minipad.isWaterStrollTarget(blockpos) ? blockpos : null;
         }
 
         @Nullable
@@ -502,23 +545,171 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         }
     }
 
-    static class MinipadTryFindWaterGoal extends TryFindWaterGoal {
+    static class MinipadReturnToWaterGoal extends Goal {
+        private static final int LAND_SEARCH_DELAY = 200;
+        private static final int SEARCH_RETRY_INTERVAL = 3600;
+        private static final int SEARCH_RANGE = 20;
+        private static final int PATH_RECALC_INTERVAL = 20;
+        private static final int MAX_RETURN_TICKS = 200;
+
         private final MinipadEntity minipad;
         private final double speedModifier;
+        private int landStartTick = -1;
+        private int nextSearchTick;
+        private int timeToRecalcPath;
+        private int returnTicks;
+        private BlockPos targetPos;
+        private Path targetPath;
 
-        public MinipadTryFindWaterGoal(MinipadEntity minipad, double speedModifier) {
-            super(minipad);
+        public MinipadReturnToWaterGoal(MinipadEntity minipad, double speedModifier) {
             this.minipad = minipad;
             this.speedModifier = speedModifier;
+            this.setFlags(EnumSet.of(Goal.Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            if (this.minipad.isInWaterHabitat()) {
+                this.landStartTick = -1;
+                return false;
+            }
+
+            if (!this.minipad.onGround()) {
+                this.landStartTick = -1;
+                return false;
+            }
+
+            if (!this.hasWaitedOnLand()) {
+                return false;
+            }
+
+            if (this.minipad.tickCount < this.nextSearchTick) {
+                return false;
+            }
+
+            return this.searchReachableWater();
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return this.targetPos != null && !this.minipad.isInWater() && this.returnTicks < MAX_RETURN_TICKS;
         }
 
         @Override
         public void start() {
-            BlockPos blockpos = this.minipad.blockPosition();
-            BlockPos waterPos = this.minipad.level().getBlockState(blockpos).getCollisionShape(this.minipad.level(), blockpos).isEmpty() ? null : BlockPos.findClosestMatch(this.minipad.blockPosition(), 16, 5, (pos) -> this.minipad.level().getFluidState(pos).is(FluidTags.WATER)).orElse(null);
-            if (waterPos != null) {
-                this.minipad.getNavigation().moveTo(waterPos.getX(), waterPos.getY(), waterPos.getZ(), this.speedModifier);
+            this.minipad.setReturningToWater(true);
+            this.returnTicks = 0;
+            this.timeToRecalcPath = 0;
+            this.moveToTarget();
+        }
+
+        @Override
+        public void tick() {
+            ++this.returnTicks;
+            if (--this.timeToRecalcPath <= 0) {
+                this.timeToRecalcPath = this.adjustedTickDelay(PATH_RECALC_INTERVAL);
+                this.moveToTarget();
             }
+        }
+
+        @Override
+        public void stop() {
+            if (this.minipad.isInWater()) {
+                this.landStartTick = -1;
+            } else {
+                this.nextSearchTick = this.minipad.tickCount + this.adjustedTickDelay(SEARCH_RETRY_INTERVAL);
+            }
+
+            this.targetPos = null;
+            this.targetPath = null;
+            this.returnTicks = 0;
+            this.timeToRecalcPath = 0;
+            this.minipad.setReturningToWater(false);
+            this.minipad.getNavigation().stop();
+        }
+
+        private boolean hasWaitedOnLand() {
+            if (this.landStartTick < 0) {
+                this.landStartTick = this.minipad.tickCount;
+            }
+
+            return this.minipad.tickCount - this.landStartTick >= LAND_SEARCH_DELAY;
+        }
+
+        private boolean searchReachableWater() {
+            List<BlockPos> candidates = this.collectSurfaceWaterCandidates();
+            boolean wasReturningToWater = this.minipad.returningToWater;
+            this.minipad.setReturningToWater(true);
+
+            try {
+                for (BlockPos candidate : candidates) {
+                    Path path = this.createReachablePath(candidate);
+                    if (path != null) {
+                        this.targetPos = candidate;
+                        this.targetPath = path;
+                        return true;
+                    }
+                }
+            } finally {
+                this.minipad.setReturningToWater(wasReturningToWater);
+            }
+
+            this.nextSearchTick = this.minipad.tickCount + this.adjustedTickDelay(SEARCH_RETRY_INTERVAL);
+            return false;
+        }
+
+        private List<BlockPos> collectSurfaceWaterCandidates() {
+            BlockPos origin = this.minipad.blockPosition();
+            List<BlockPos> candidates = new ArrayList<>();
+            BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
+
+            for (int y = -SEARCH_RANGE; y <= SEARCH_RANGE; ++y) {
+                for (int x = -SEARCH_RANGE; x <= SEARCH_RANGE; ++x) {
+                    for (int z = -SEARCH_RANGE; z <= SEARCH_RANGE; ++z) {
+                        mutablePos.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
+                        if (this.isSurfaceWaterTarget(mutablePos)) {
+                            candidates.add(mutablePos.immutable());
+                        }
+                    }
+                }
+            }
+
+            candidates.sort(Comparator.comparingDouble(origin::distSqr));
+            return candidates;
+        }
+
+        private boolean isSurfaceWaterTarget(BlockPos pos) {
+            LevelReader level = this.minipad.level();
+            return level.getFluidState(pos).is(FluidTags.WATER)
+                    && !level.getFluidState(pos.above()).is(FluidTags.WATER)
+                    && level.getBlockState(pos.above()).isAir();
+        }
+
+        @Nullable
+        private Path createReachablePath(BlockPos pos) {
+            Path path = this.minipad.getNavigation().createPath(pos, 0);
+            if (path != null && path.getNodeCount() > 0 && path.canReach()) {
+                return path;
+            }
+
+            return null;
+        }
+
+        private void moveToTarget() {
+            if (this.targetPos == null) {
+                return;
+            }
+
+            Path path = this.targetPath != null ? this.targetPath : this.createReachablePath(this.targetPos);
+            if (path == null) {
+                this.targetPath = null;
+                this.targetPos = null;
+                this.minipad.getNavigation().stop();
+                return;
+            }
+
+            this.targetPath = null;
+            this.minipad.getNavigation().moveTo(path, this.speedModifier);
         }
     }
 }
