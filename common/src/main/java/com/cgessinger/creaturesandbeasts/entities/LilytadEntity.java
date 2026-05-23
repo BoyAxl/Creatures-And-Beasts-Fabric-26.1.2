@@ -1,12 +1,12 @@
 package com.cgessinger.creaturesandbeasts.entities;
 
 import com.cgessinger.creaturesandbeasts.entities.ai.FindWaterOneDeepGoal;
+import com.cgessinger.creaturesandbeasts.entities.ai.ReachableBlockTargetGoal;
 import com.cgessinger.creaturesandbeasts.init.CNBLilytadTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import com.cgessinger.creaturesandbeasts.util.LilytadType;
 import com.cgessinger.creaturesandbeasts.util.ShearableMobInteraction;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -24,7 +24,6 @@ import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.control.LookControl;
-import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.PanicGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
@@ -38,7 +37,6 @@ import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.ServerLevelAccessor;
-import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -54,8 +52,6 @@ import com.geckolib.animation.RawAnimation;
 import com.geckolib.animation.object.PlayState;
 import com.geckolib.util.GeckoLibUtil;
 
-import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 
 public class LilytadEntity extends Animal implements Shearable, GeoEntity, FindWaterOneDeepGoal.DeepWaterFallback {
@@ -378,7 +374,7 @@ public class LilytadEntity extends Animal implements Shearable, GeoEntity, FindW
         }
     }
 
-    static class LilytadDeepWaterWanderGoal extends Goal {
+    static class LilytadDeepWaterWanderGoal extends ReachableBlockTargetGoal {
         private static final int WANDER_INTERVAL = 60;
         private static final int HORIZONTAL_RANGE = 8;
         private static final int VERTICAL_RANGE = 4;
@@ -387,16 +383,10 @@ public class LilytadEntity extends Animal implements Shearable, GeoEntity, FindW
         private static final int MAX_PATH_CANDIDATES = 32;
 
         private final LilytadEntity lilytad;
-        private final double speedModifier;
-        private int timeToRecalcPath;
-        private int wanderTicks;
-        private BlockPos targetPos;
-        private Path targetPath;
 
         public LilytadDeepWaterWanderGoal(LilytadEntity lilytad, double speedModifier) {
+            super(lilytad, speedModifier, PATH_RECALC_INTERVAL, MAX_WANDER_TICKS);
             this.lilytad = lilytad;
-            this.speedModifier = speedModifier;
-            this.setFlags(EnumSet.of(Goal.Flag.MOVE));
         }
 
         @Override
@@ -413,70 +403,17 @@ public class LilytadEntity extends Animal implements Shearable, GeoEntity, FindW
         }
 
         @Override
-        public boolean canContinueToUse() {
-            return this.targetPos != null && this.lilytad.isDeepWaterFallbackActive() && this.wanderTicks < MAX_WANDER_TICKS;
-        }
-
-        @Override
-        public void start() {
-            this.wanderTicks = 0;
-            this.timeToRecalcPath = 0;
-            this.moveToTarget();
-        }
-
-        @Override
-        public void tick() {
-            ++this.wanderTicks;
-            if (--this.timeToRecalcPath <= 0) {
-                this.timeToRecalcPath = this.adjustedTickDelay(PATH_RECALC_INTERVAL);
-                this.moveToTarget();
-            }
-        }
-
-        @Override
-        public void stop() {
-            this.targetPos = null;
-            this.targetPath = null;
-            this.wanderTicks = 0;
-            this.timeToRecalcPath = 0;
-            this.lilytad.getNavigation().stop();
+        protected boolean canContinueMoving() {
+            return this.lilytad.isDeepWaterFallbackActive();
         }
 
         private boolean searchWalkTarget() {
-            int checkedCandidates = 0;
-            for (BlockPos candidate : this.collectWalkTargets()) {
-                Path path = this.createReachablePath(candidate);
-                if (path != null) {
-                    this.targetPos = candidate;
-                    this.targetPath = path;
-                    return true;
-                }
-
-                if (++checkedCandidates >= MAX_PATH_CANDIDATES) {
-                    break;
-                }
-            }
-
-            return false;
+            return this.setReachableTarget(this.collectWalkTargets(), MAX_PATH_CANDIDATES);
         }
 
         private List<BlockPos> collectWalkTargets() {
             BlockPos origin = this.lilytad.blockPosition();
-            List<BlockPos> candidates = new ArrayList<>();
-            BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
-
-            for (int y = -VERTICAL_RANGE; y <= VERTICAL_RANGE; ++y) {
-                for (int x = -HORIZONTAL_RANGE; x <= HORIZONTAL_RANGE; ++x) {
-                    for (int z = -HORIZONTAL_RANGE; z <= HORIZONTAL_RANGE; ++z) {
-                        mutablePos.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
-                        if (this.lilytad.isUnderwaterWalkTarget(mutablePos)) {
-                            candidates.add(mutablePos.immutable());
-                        }
-                    }
-                }
-            }
-
-            candidates.sort((first, second) -> {
+            return this.collectCandidates(HORIZONTAL_RANGE, VERTICAL_RANGE, this.lilytad::isUnderwaterWalkTarget, (first, second) -> {
                 boolean firstHigher = first.getY() > origin.getY();
                 boolean secondHigher = second.getY() > origin.getY();
                 if (firstHigher != secondHigher) {
@@ -490,34 +427,6 @@ public class LilytadEntity extends Animal implements Shearable, GeoEntity, FindW
 
                 return Double.compare(origin.distSqr(first), origin.distSqr(second));
             });
-            return candidates;
-        }
-
-        @Nullable
-        private Path createReachablePath(BlockPos pos) {
-            Path path = this.lilytad.getNavigation().createPath(pos, 0);
-            if (path != null && path.getNodeCount() > 0 && path.canReach()) {
-                return path;
-            }
-
-            return null;
-        }
-
-        private void moveToTarget() {
-            if (this.targetPos == null) {
-                return;
-            }
-
-            Path path = this.targetPath != null ? this.targetPath : this.createReachablePath(this.targetPos);
-            if (path == null) {
-                this.targetPath = null;
-                this.targetPos = null;
-                this.lilytad.getNavigation().stop();
-                return;
-            }
-
-            this.targetPath = null;
-            this.lilytad.getNavigation().moveTo(path, this.speedModifier);
         }
     }
 }

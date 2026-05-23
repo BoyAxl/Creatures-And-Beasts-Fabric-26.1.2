@@ -1,5 +1,6 @@
 package com.cgessinger.creaturesandbeasts.entities;
 
+import com.cgessinger.creaturesandbeasts.entities.ai.ReachableBlockTargetGoal;
 import com.cgessinger.creaturesandbeasts.init.CNBMinipadTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import com.cgessinger.creaturesandbeasts.util.MinipadType;
@@ -38,7 +39,6 @@ import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
-import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -56,9 +56,7 @@ import com.geckolib.animation.RawAnimation;
 import com.geckolib.animation.object.PlayState;
 import com.geckolib.util.GeckoLibUtil;
 
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.List;
 
 public class MinipadEntity extends Animal implements Shearable, GeoEntity {
@@ -545,7 +543,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         }
     }
 
-    static class MinipadReturnToWaterGoal extends Goal {
+    static class MinipadReturnToWaterGoal extends ReachableBlockTargetGoal {
         private static final int LAND_SEARCH_DELAY = 200;
         private static final int SEARCH_RETRY_INTERVAL = 3600;
         private static final int SEARCH_RANGE = 20;
@@ -553,18 +551,12 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         private static final int MAX_RETURN_TICKS = 200;
 
         private final MinipadEntity minipad;
-        private final double speedModifier;
         private int landStartTick = -1;
         private int nextSearchTick;
-        private int timeToRecalcPath;
-        private int returnTicks;
-        private BlockPos targetPos;
-        private Path targetPath;
 
         public MinipadReturnToWaterGoal(MinipadEntity minipad, double speedModifier) {
+            super(minipad, speedModifier, PATH_RECALC_INTERVAL, MAX_RETURN_TICKS);
             this.minipad = minipad;
-            this.speedModifier = speedModifier;
-            this.setFlags(EnumSet.of(Goal.Flag.MOVE));
         }
 
         @Override
@@ -591,25 +583,14 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         }
 
         @Override
-        public boolean canContinueToUse() {
-            return this.targetPos != null && !this.minipad.isInWater() && this.returnTicks < MAX_RETURN_TICKS;
+        protected boolean canContinueMoving() {
+            return !this.minipad.isInWater();
         }
 
         @Override
         public void start() {
             this.minipad.setReturningToWater(true);
-            this.returnTicks = 0;
-            this.timeToRecalcPath = 0;
-            this.moveToTarget();
-        }
-
-        @Override
-        public void tick() {
-            ++this.returnTicks;
-            if (--this.timeToRecalcPath <= 0) {
-                this.timeToRecalcPath = this.adjustedTickDelay(PATH_RECALC_INTERVAL);
-                this.moveToTarget();
-            }
+            super.start();
         }
 
         @Override
@@ -620,12 +601,8 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
                 this.nextSearchTick = this.minipad.tickCount + this.adjustedTickDelay(SEARCH_RETRY_INTERVAL);
             }
 
-            this.targetPos = null;
-            this.targetPath = null;
-            this.returnTicks = 0;
-            this.timeToRecalcPath = 0;
             this.minipad.setReturningToWater(false);
-            this.minipad.getNavigation().stop();
+            super.stop();
         }
 
         private boolean hasWaitedOnLand() {
@@ -637,18 +614,12 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         }
 
         private boolean searchReachableWater() {
-            List<BlockPos> candidates = this.collectSurfaceWaterCandidates();
             boolean wasReturningToWater = this.minipad.returningToWater;
             this.minipad.setReturningToWater(true);
 
             try {
-                for (BlockPos candidate : candidates) {
-                    Path path = this.createReachablePath(candidate);
-                    if (path != null) {
-                        this.targetPos = candidate;
-                        this.targetPath = path;
-                        return true;
-                    }
+                if (this.setReachableTarget(this.collectSurfaceWaterCandidates())) {
+                    return true;
                 }
             } finally {
                 this.minipad.setReturningToWater(wasReturningToWater);
@@ -660,22 +631,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
         private List<BlockPos> collectSurfaceWaterCandidates() {
             BlockPos origin = this.minipad.blockPosition();
-            List<BlockPos> candidates = new ArrayList<>();
-            BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
-
-            for (int y = -SEARCH_RANGE; y <= SEARCH_RANGE; ++y) {
-                for (int x = -SEARCH_RANGE; x <= SEARCH_RANGE; ++x) {
-                    for (int z = -SEARCH_RANGE; z <= SEARCH_RANGE; ++z) {
-                        mutablePos.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
-                        if (this.isSurfaceWaterTarget(mutablePos)) {
-                            candidates.add(mutablePos.immutable());
-                        }
-                    }
-                }
-            }
-
-            candidates.sort(Comparator.comparingDouble(origin::distSqr));
-            return candidates;
+            return this.collectCandidates(SEARCH_RANGE, SEARCH_RANGE, this::isSurfaceWaterTarget, Comparator.comparingDouble(origin::distSqr));
         }
 
         private boolean isSurfaceWaterTarget(BlockPos pos) {
@@ -683,33 +639,6 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
             return level.getFluidState(pos).is(FluidTags.WATER)
                     && !level.getFluidState(pos.above()).is(FluidTags.WATER)
                     && level.getBlockState(pos.above()).isAir();
-        }
-
-        @Nullable
-        private Path createReachablePath(BlockPos pos) {
-            Path path = this.minipad.getNavigation().createPath(pos, 0);
-            if (path != null && path.getNodeCount() > 0 && path.canReach()) {
-                return path;
-            }
-
-            return null;
-        }
-
-        private void moveToTarget() {
-            if (this.targetPos == null) {
-                return;
-            }
-
-            Path path = this.targetPath != null ? this.targetPath : this.createReachablePath(this.targetPos);
-            if (path == null) {
-                this.targetPath = null;
-                this.targetPos = null;
-                this.minipad.getNavigation().stop();
-                return;
-            }
-
-            this.targetPath = null;
-            this.minipad.getNavigation().moveTo(path, this.speedModifier);
         }
     }
 }
