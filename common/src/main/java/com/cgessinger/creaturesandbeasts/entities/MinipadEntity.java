@@ -350,7 +350,9 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     }
 
     private boolean isWaterStrollTarget(BlockPos pos) {
-        return this.level().getFluidState(pos).is(FluidTags.WATER);
+        return this.level().getBlockState(pos).isAir()
+                && this.level().getFluidState(pos.below()).is(FluidTags.WATER)
+                && !this.level().getFluidState(pos).is(FluidTags.WATER);
     }
 
     private void setReturningToWater(boolean returningToWater) {
@@ -547,7 +549,16 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         @Nullable
         private static BlockPos generateWaterPosTowardDirection(MinipadEntity minipad, int horizontalRange, boolean flag, BlockPos posTowards) {
             BlockPos blockpos = generateRandomPosTowardDirection(minipad, horizontalRange, flag, posTowards);
-            return blockpos != null && minipad.isWaterStrollTarget(blockpos) ? blockpos : null;
+            if (blockpos == null) {
+                return null;
+            }
+
+            if (minipad.isWaterStrollTarget(blockpos)) {
+                return blockpos;
+            }
+
+            BlockPos surfacePos = blockpos.above();
+            return minipad.isWaterStrollTarget(surfacePos) ? surfacePos : null;
         }
 
         @Nullable
