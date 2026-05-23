@@ -68,6 +68,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     private static final RawAnimation SWIM_ANIMATION = RawAnimation.begin().thenLoop("minipad_swim");
     private static final RawAnimation FLOAT_ANIMATION = RawAnimation.begin().thenLoop("minipad_float");
     private static final RawAnimation WALK_ANIMATION = RawAnimation.begin().thenLoop("minipad_walk");
+    private static final double WATER_COLLISION_HEIGHT = 7.0D;
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     private int shearedTimer;
@@ -242,7 +243,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     @Override
     public VoxelShape getLiquidCollisionShape() {
-        return Block.column(16.0D, 0.0D, 8.0D);
+        return Block.column(16.0D, 0.0D, WATER_COLLISION_HEIGHT);
     }
 
     @Override
