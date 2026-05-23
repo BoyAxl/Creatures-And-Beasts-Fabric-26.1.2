@@ -3,6 +3,7 @@ package com.cgessinger.creaturesandbeasts.entities;
 import com.cgessinger.creaturesandbeasts.entities.ai.ReachableBlockTargetGoal;
 import com.cgessinger.creaturesandbeasts.init.CNBMinipadTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
+import com.cgessinger.creaturesandbeasts.util.MinipadGlow;
 import com.cgessinger.creaturesandbeasts.util.MinipadType;
 import com.cgessinger.creaturesandbeasts.util.ShearableMobInteraction;
 import net.minecraft.core.BlockPos;
@@ -142,8 +143,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         }
 
         if (!this.level().isClientSide()) {
-            long time = this.level().getDefaultClockTime() % 24000L;
-            this.setGlowing(time >= 13000 && time <= 23000);
+            this.updateGlowingState();
         }
     }
 
@@ -273,6 +273,13 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         return this.entityData.get(GLOWING);
     }
 
+    private void updateGlowingState() {
+        boolean shouldGlow = MinipadGlow.isNightGlowTime(this.level().getDefaultClockTime());
+        if (this.isGlowing() != shouldGlow) {
+            this.setGlowing(shouldGlow);
+        }
+    }
+
     public void setMinipadType(MinipadType minipadType) {
         this.entityData.set(TYPE, minipadType.getId().toString());
     }
@@ -291,12 +298,19 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         level.playSound(null, this, SoundEvents.SHEEP_SHEAR, source, 1.0F, 1.0F);
         this.setSheared(true);
 
-        long time = level.getDefaultClockTime() % 24000L;
-        ItemEntity item = this.spawnAtLocation(level, time > 13000 ? new ItemStack(this.getMinipadType().getGlowShearItem()) : new ItemStack(this.getMinipadType().getShearItem()), 1);
+        ItemEntity item = this.spawnAtLocation(level, this.createShearedFlowerStack(level), 1);
 
         if (item != null) {
             item.addDeltaMovement(new Vec3((this.random.nextFloat() - this.random.nextFloat()) * 0.1F, this.random.nextFloat() * 0.05F, (this.random.nextFloat() - this.random.nextFloat()) * 0.1F));
         }
+    }
+
+    private ItemStack createShearedFlowerStack(ServerLevel level) {
+        if (MinipadGlow.dropsGlowingFlowerAt(level.getDefaultClockTime())) {
+            return new ItemStack(this.getMinipadType().getGlowShearItem());
+        }
+
+        return new ItemStack(this.getMinipadType().getShearItem());
     }
 
     @Override

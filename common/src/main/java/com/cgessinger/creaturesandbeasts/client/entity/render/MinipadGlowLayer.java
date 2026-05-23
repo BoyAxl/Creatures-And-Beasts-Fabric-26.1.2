@@ -2,6 +2,7 @@ package com.cgessinger.creaturesandbeasts.client.entity.render;
 
 import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.entities.MinipadEntity;
+import com.cgessinger.creaturesandbeasts.util.MinipadGlow;
 import com.geckolib.constant.DataTickets;
 import com.geckolib.constant.dataticket.DataTicket;
 import com.geckolib.renderer.base.GeoRenderer;
@@ -31,13 +32,12 @@ public class MinipadGlowLayer extends GeoRenderLayer<MinipadEntity, Void, Living
 
     @Override
     public void addRenderData(MinipadEntity animatable, Void relatedObject, LivingEntityRenderState renderState, float partialTick) {
-        long time = animatable.level().getDefaultClockTime() % 24000L;
-        float flowerAlpha = (float)Math.pow((time - 18000L) / 5000F, 2);
+        float glowAlpha = MinipadGlow.getAlpha(animatable.level().getDefaultClockTime(), partialTick);
 
-        renderState.addGeckolibData(GLOWING, animatable.isGlowing());
+        renderState.addGeckolibData(GLOWING, glowAlpha > 0F);
         renderState.addGeckolibData(SHEARED, animatable.getSheared());
-        renderState.addGeckolibData(FLOWER_ALPHA, flowerAlpha);
-        renderState.addGeckolibData(EYES_ALPHA, 1F - flowerAlpha);
+        renderState.addGeckolibData(FLOWER_ALPHA, glowAlpha);
+        renderState.addGeckolibData(EYES_ALPHA, glowAlpha);
         renderState.addGeckolibData(FLOWER_TEXTURE, animatable.getMinipadType().getGlowTextureLocation());
     }
 
