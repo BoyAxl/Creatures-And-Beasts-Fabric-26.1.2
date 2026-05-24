@@ -8,6 +8,8 @@ import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -17,7 +19,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.BiomeTags;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -40,7 +44,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.storage.ValueInput;
@@ -85,6 +92,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     private static final int IDLE_2_ANIMATION_DELAY_TICKS = 10;
     private static final float WALK_ANIMATION_MOVING_SPEED = 0.075F;
     private static final float BABY_HEALTH = 20.0F;
+    private static final int MAX_SPAWN_CLUSTER_SIZE = 13;
 
     // Elder Goals
     private final RandomStrollGoal elderStrollGoal = new RandomStrollGoal(this, 0.65D);
@@ -114,6 +122,19 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         return Mob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 30.0D)
                 .add(Attributes.MOVEMENT_SPEED, 0.25D);
+    }
+
+    public static boolean isCactemSpawnBiome(Holder<Biome> biome) {
+        return biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT);
+    }
+
+    public static boolean checkCactemSpawnRules(EntityType<CactemEntity> entityType, LevelAccessor level, EntitySpawnReason reason, BlockPos pos, RandomSource random) {
+        if ((reason == EntitySpawnReason.NATURAL || reason == EntitySpawnReason.CHUNK_GENERATION) && !isCactemSpawnBiome(level.getBiome(pos))) {
+            return false;
+        }
+
+        return Mob.checkMobSpawnRules(entityType, level, reason, pos, random)
+                && level.getRawBrightness(pos, 0) > 8;
     }
 
     @Override
@@ -259,8 +280,13 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     }
 
     @Override
-    public boolean removeWhenFarAway(double p_21542_) {
-        return !this.hasCustomName();
+    public boolean removeWhenFarAway(double distanceToClosestPlayer) {
+        return false;
+    }
+
+    @Override
+    public int getMaxSpawnClusterSize() {
+        return MAX_SPAWN_CLUSTER_SIZE;
     }
 
     @Override

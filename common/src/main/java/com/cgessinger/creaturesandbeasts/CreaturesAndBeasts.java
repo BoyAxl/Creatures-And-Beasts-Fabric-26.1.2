@@ -1,6 +1,7 @@
 package com.cgessinger.creaturesandbeasts;
 
 import com.cgessinger.creaturesandbeasts.config.CNBConfig;
+import com.cgessinger.creaturesandbeasts.entities.CactemEntity;
 import com.cgessinger.creaturesandbeasts.entities.LilytadEntity;
 import com.cgessinger.creaturesandbeasts.entities.LizardEntity;
 import com.cgessinger.creaturesandbeasts.entities.MinipadEntity;
@@ -98,17 +99,12 @@ public class CreaturesAndBeasts {
     }
 
     public void addSpawns(BiomeSpawns spawns) {
-        spawns.addSpawn(
-            biome -> biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT),
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.CACTEM.get(), 3, 6, 13),
-            null
-        );
+        this.addCactemSpawns(spawns);
 
         spawns.addSpawn(
             biome -> biome.is(Biomes.NETHER_WASTES),
             MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.CINDERSHELL.get(), 400, 2, 8),
+            BiomeSpawns.spawn(CNBEntityTypes.CINDERSHELL.get(), 90, 2, 8),
             null
         );
 
@@ -124,7 +120,7 @@ public class CreaturesAndBeasts {
         spawns.addSpawn(
             biome -> biome.is(BiomeTags.IS_RIVER),
             MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.LITTLE_GREBE.get(), 35, 2, 3),
+            BiomeSpawns.spawn(CNBEntityTypes.LITTLE_GREBE.get(), 25, 2, 3),
             null
         );
 
@@ -194,11 +190,16 @@ public class CreaturesAndBeasts {
             spawns,
             LilytadEntity::isLilytadSpawnBiome,
             CNBEntityTypes.LILYTAD.get(),
-            20,
-            35,
+            12,
+            25,
             1,
             3
         );
+    }
+
+    private void addCactemSpawns(BiomeSpawns spawns) {
+        EntityType<CactemEntity> cactem = CNBEntityTypes.CACTEM.get();
+        this.addSpawn(spawns, CactemEntity::isCactemSpawnBiome, MobCategory.CREATURE, cactem, 8, 6, 13);
     }
 
     private void addMinipadSpawns(BiomeSpawns spawns) {
@@ -206,8 +207,8 @@ public class CreaturesAndBeasts {
             spawns,
             MinipadEntity::isMinipadSpawnBiome,
             CNBEntityTypes.MINIPAD.get(),
-            20,
-            45,
+            12,
+            30,
             3,
             5
         );
@@ -215,8 +216,8 @@ public class CreaturesAndBeasts {
 
     private void addLizardSpawns(BiomeSpawns spawns) {
         EntityType<LizardEntity> lizard = CNBEntityTypes.LIZARD.get();
-        this.addCreatureSpawn(spawns, biome -> biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT), lizard, 15, 1, 4);
-        this.addCreatureSpawn(spawns, biome -> biome.is(BiomeTags.IS_JUNGLE), lizard, 100, 1, 4);
+        this.addCreatureSpawn(spawns, biome -> biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT), lizard, 12, 1, 4);
+        this.addCreatureSpawn(spawns, biome -> biome.is(BiomeTags.IS_JUNGLE), lizard, 45, 1, 4);
         this.addCreatureSpawn(spawns, biome -> biome.is(Biomes.MUSHROOM_FIELDS), lizard, 10, 1, 4);
     }
 

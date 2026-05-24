@@ -33,12 +33,7 @@ public final class SwampHabitatSpawnRules {
     }
 
     public static boolean isCaveBiome(Holder<Biome> biome) {
-        return biome.is(Biomes.LUSH_CAVES) || biome.is(Biomes.DRIPSTONE_CAVES);
-    }
-
-    public static boolean hasSwampSurfaceBiome(LevelAccessor level, BlockPos pos) {
-        BlockPos surfacePos = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, pos);
-        return isSwampBiome(level.getBiome(surfacePos));
+        return biome.is(Biomes.LUSH_CAVES);
     }
 
     public static boolean isSurfaceGroundSpawn(EntityType<?> entityType, LevelAccessor level, BlockPos pos, int surfaceTolerance) {

@@ -202,7 +202,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
             return isWaterHabitatSpawn(entityType, level, pos) || isSurfaceGroundSpawn(entityType, level, pos);
         }
 
-        return SwampHabitatSpawnRules.isCaveBiome(biome) && SwampHabitatSpawnRules.hasSwampSurfaceBiome(level, pos) && isWaterHabitatSpawn(entityType, level, pos);
+        return SwampHabitatSpawnRules.isCaveBiome(biome) && isWaterHabitatSpawn(entityType, level, pos);
     }
 
     public static boolean isMinipadSpawnBiome(Holder<Biome> biome) {

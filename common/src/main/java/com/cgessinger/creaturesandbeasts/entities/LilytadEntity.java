@@ -176,9 +176,7 @@ public class LilytadEntity extends Animal implements Shearable, GeoEntity, FindW
             return isShallowWaterHabitatSpawn(entityType, level, pos) || isSurfaceGroundSpawn(entityType, level, pos);
         }
 
-        return SwampHabitatSpawnRules.isCaveBiome(biome)
-                && SwampHabitatSpawnRules.hasSwampSurfaceBiome(level, pos)
-                && isShallowWaterHabitatSpawn(entityType, level, pos);
+        return SwampHabitatSpawnRules.isCaveBiome(biome) && isShallowWaterHabitatSpawn(entityType, level, pos);
     }
 
     public static boolean isLilytadSpawnBiome(Holder<Biome> biome) {
