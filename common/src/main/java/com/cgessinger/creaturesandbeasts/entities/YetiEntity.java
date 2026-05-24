@@ -8,6 +8,7 @@ import net.minecraft.client.particle.ParticleEngine;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -22,6 +23,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -63,15 +65,22 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     public static final EntityDataAccessor<ItemStack> HELD_ITEM = SynchedEntityData.defineId(YetiEntity.class, EntityDataSerializers.ITEM_STACK);
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
+    private static final String STAY_MESSAGE_KEY = "entity.cnb.yeti.client_message.stay";
+    private static final String FOLLOW_MESSAGE_KEY = "entity.cnb.yeti.client_message.follow";
     private static final Identifier HEALTH_REDUCTION_ID = Identifier.fromNamespaceAndPath(CreaturesAndBeasts.MOD_ID, "yeti_health_reduction");
+    private static final Identifier ATTACK_DAMAGE_BONUS_ID = Identifier.fromNamespaceAndPath(CreaturesAndBeasts.MOD_ID, "yeti_attack_damage_bonus");
     private static final float SWEET_BERRY_MIN_HEAL_AMOUNT = 2.0F;
     private static final float SWEET_BERRY_MAX_HEAL_AMOUNT = 4.0F;
+    private static final float WILD_ADULT_HEALTH = 40.0F;
+    private static final float TAMED_ADULT_HEALTH = 60.0F;
+    private static final float BABY_HEALTH = 24.0F;
+    private static final float MIN_ATTACK_DAMAGE = 12.0F;
+    private static final float MAX_ATTACK_DAMAGE = 16.0F;
     private static final double BABY_PROTECTION_RANGE = 8.0D;
     private static final double BABY_PROTECTION_VERTICAL_RANGE = 4.0D;
     private static final double BABY_THREAT_RANGE = 4.0D;
     private static final double BABY_THREAT_VERTICAL_RANGE = 2.0D;
     private static final int MELON_TAME_RETRY_INTERVAL_TICKS = 20 * 60;
-    private static final float BABY_HEALTH = 20.0F;
 
     private static final UniformInt PERSISTENT_ANGER_TIME = TimeUtil.rangeOfSeconds(20, 39);
     private long persistentAngerEndTime;
@@ -113,15 +122,16 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         this.setPassive(input.getBooleanOr("Passive", false));
         this.melonFeeder = EntityReference.read(input, "MelonFeeder");
         this.migrateUntamedBabyOwnerReference();
+        this.refreshMaxHealth(true);
         this.readPersistentAngerSaveData(this.level(), input);
     }
 
 
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes()
-                .add(Attributes.MAX_HEALTH, 120.0D)
+                .add(Attributes.MAX_HEALTH, WILD_ADULT_HEALTH)
                 .add(Attributes.MOVEMENT_SPEED, 0.3D)
-                .add(Attributes.ATTACK_DAMAGE, 16.0D)
+                .add(Attributes.ATTACK_DAMAGE, MIN_ATTACK_DAMAGE)
                 .add(Attributes.ATTACK_SPEED, 0.1D)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 0.7D)
                 .add(Attributes.STEP_HEIGHT, 1.0D);
@@ -131,13 +141,14 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     protected void registerGoals() {
         super.registerGoals();
         this.goalSelector.addGoal(1, new FloatGoal(this));
-        this.goalSelector.addGoal(1, new BreedGoal(this, 1.0D));
-        this.goalSelector.addGoal(2, new YetiAttackGoal(this, 1.2D, true));
-        this.goalSelector.addGoal(3, new FollowOwnerGoal(this, 1.0D, 10.0F, 2.0F));
-        this.goalSelector.addGoal(4, new FollowParentGoal(this, 1.0D));
-        this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, 12.0F));
-        this.goalSelector.addGoal(6, new RandomLookAroundGoal(this));
-        this.goalSelector.addGoal(7, new WaterAvoidingRandomStrollGoal(this, 1.0D, 0.01F));
+        this.goalSelector.addGoal(2, new SitWhenOrderedToGoal(this));
+        this.goalSelector.addGoal(3, new YetiAttackGoal(this, 1.2D, true));
+        this.goalSelector.addGoal(4, new BreedGoal(this, 1.0D));
+        this.goalSelector.addGoal(5, new FollowOwnerGoal(this, 1.0D, 10.0F, 2.0F));
+        this.goalSelector.addGoal(6, new FollowParentGoal(this, 1.0D));
+        this.goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 12.0F));
+        this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
+        this.goalSelector.addGoal(9, new WaterAvoidingRandomStrollGoal(this, 1.0D, 0.01F));
         this.targetSelector.addGoal(1, new OwnerHurtByTargetGoal(this));
         this.targetSelector.addGoal(2, new OwnerHurtTargetGoal(this));
         this.targetSelector.addGoal(3, (new YetiHurtByTargetGoal(this)).setAlertOthers());
@@ -259,6 +270,32 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         return !this.shouldRejectTarget(target) && super.wantsToAttack(target, owner);
     }
 
+    @Override
+    protected void applyTamingSideEffects() {
+        super.applyTamingSideEffects();
+        this.refreshMaxHealth(true);
+    }
+
+    private void refreshMaxHealth(boolean preserveHealthPercent) {
+        AttributeInstance maxHealth = this.getAttribute(Attributes.MAX_HEALTH);
+        if (maxHealth == null) {
+            return;
+        }
+
+        float oldMaxHealth = this.getMaxHealth();
+        float healthPercent = oldMaxHealth > 0.0F ? Math.min(1.0F, Math.max(0.0F, this.getHealth() / oldMaxHealth)) : 1.0F;
+
+        maxHealth.removeModifier(HEALTH_REDUCTION_ID);
+        maxHealth.setBaseValue(this.isTame() ? TAMED_ADULT_HEALTH : WILD_ADULT_HEALTH);
+
+        if (this.isBaby()) {
+            maxHealth.addOrUpdateTransientModifier(new AttributeModifier(HEALTH_REDUCTION_ID, BABY_HEALTH - maxHealth.getBaseValue(), AttributeModifier.Operation.ADD_VALUE));
+        }
+
+        float newHealth = preserveHealthPercent ? this.getMaxHealth() * healthPercent : Math.min(this.getHealth(), this.getMaxHealth());
+        this.setHealth(newHealth);
+    }
+
     private boolean isHostileProtectiveTarget(LivingEntity target) {
         return !(target instanceof YetiEntity) && target instanceof Enemy;
     }
@@ -349,11 +386,34 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
             }
         }
 
+        if (this.canToggleOrderedSitting(player)) {
+            if (this.level().isClientSide()) {
+                return InteractionResult.CONSUME;
+            }
+
+            this.setOrderedToSit(!this.isOrderedToSit());
+            this.jumping = false;
+            this.navigation.stop();
+            this.setTarget(null);
+            this.setAttacking(false);
+            this.sendOrderedSittingMessage(player);
+            return InteractionResult.SUCCESS;
+        }
+
         if (this.level().isClientSide()) {
             return InteractionResult.CONSUME;
         }
 
         return InteractionResult.PASS;
+    }
+
+    private boolean canToggleOrderedSitting(Player player) {
+        return this.isTame() && !this.isBaby() && this.isOwnedBy(player) && !this.isEating();
+    }
+
+    private void sendOrderedSittingMessage(Player player) {
+        String message = this.isOrderedToSit() ? STAY_MESSAGE_KEY : FOLLOW_MESSAGE_KEY;
+        player.sendOverlayMessage(Component.translatable(message, this.getName()));
     }
 
     private void showBabyGrowthParticles() {
@@ -417,28 +477,18 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         return false;
     }
 
-    /*
-     * If a Yeti is a baby, apply the max health reduction to the yeti and set its health to the new max
-     */
     @Override
     public void setAge(int age) {
         super.setAge(age);
-        double maxHealth = this.getAttribute(Attributes.MAX_HEALTH).getValue();
-        if (isBaby() && maxHealth > BABY_HEALTH) {
-            this.getAttribute(Attributes.MAX_HEALTH).addOrUpdateTransientModifier(new AttributeModifier(HEALTH_REDUCTION_ID, BABY_HEALTH - maxHealth, AttributeModifier.Operation.ADD_VALUE));
-            this.setHealth(BABY_HEALTH);
+        if (this.isBaby() && this.getMaxHealth() != BABY_HEALTH) {
+            this.refreshMaxHealth(false);
         }
     }
 
-    /*
-     * When a Yeti baby grows up, remove the max health debuff, maintain the same percentage of max health
-     */
     @Override
     protected void ageBoundaryReached() {
         super.ageBoundaryReached();
-        float percentHealth = this.getHealth() / BABY_HEALTH;
-        this.getAttribute(Attributes.MAX_HEALTH).removeModifier(HEALTH_REDUCTION_ID);
-        this.setHealth(percentHealth * (float) this.getAttribute(Attributes.MAX_HEALTH).getValue());
+        this.refreshMaxHealth(true);
         this.setEating(false);
         this.setHolding(ItemStack.EMPTY);
 
@@ -525,24 +575,6 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     }
 
     @Override
-    public boolean isInSittingPose() {
-        return false;
-    }
-
-    @Override
-    public void setInSittingPose(boolean p_21838_) {
-    }
-
-    @Override
-    public boolean isOrderedToSit() {
-        return false;
-    }
-
-    @Override
-    public void setOrderedToSit(boolean p_21840_) {
-    }
-
-    @Override
     public boolean removeWhenFarAway(double distanceToClosestPlayer) {
         return false;
     }
@@ -558,6 +590,27 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
                 this.doHurtTarget(serverLevel, entity);
             }
         }
+    }
+
+    @Override
+    public boolean doHurtTarget(ServerLevel level, Entity target) {
+        AttributeInstance attackDamage = this.getAttribute(Attributes.ATTACK_DAMAGE);
+        if (attackDamage == null) {
+            return super.doHurtTarget(level, target);
+        }
+
+        attackDamage.removeModifier(ATTACK_DAMAGE_BONUS_ID);
+        attackDamage.addOrUpdateTransientModifier(new AttributeModifier(ATTACK_DAMAGE_BONUS_ID, this.getAttackDamageBonus(), AttributeModifier.Operation.ADD_VALUE));
+
+        try {
+            return super.doHurtTarget(level, target);
+        } finally {
+            attackDamage.removeModifier(ATTACK_DAMAGE_BONUS_ID);
+        }
+    }
+
+    private float getAttackDamageBonus() {
+        return this.random.nextInt((int) (MAX_ATTACK_DAMAGE - MIN_ATTACK_DAMAGE) + 1);
     }
 
     private boolean shouldSkipAreaAttackTarget(LivingEntity entity) {

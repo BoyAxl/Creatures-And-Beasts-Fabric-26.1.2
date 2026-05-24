@@ -71,6 +71,9 @@
   "entity.cnb.end_whale": "End Whale",
   "entity.cnb.cactem": "Cactem",
 
+  "entity.cnb.yeti.client_message.follow": "%1$s will follow you",
+  "entity.cnb.yeti.client_message.stay": "%1$s will stay put",
+
   "entity.little_grebe_chick.ambient": "Little Grebe cheeps",
   "entity.little_grebe.ambient": "Little Grebe cheeps",
   "entity.little_grebe.hurt": "Little Grebe hurts",

@@ -71,6 +71,9 @@
   "entity.cnb.end_whale": "End Whale",
   "entity.cnb.cactem": "Cactem",
 
+  "entity.cnb.yeti.client_message.follow": "%1$s te seguirá",
+  "entity.cnb.yeti.client_message.stay": "%1$s se quedará quieto",
+
   "entity.little_grebe_chick.ambient": "Graznido de Zampullín",
   "entity.little_grebe.ambient": "Graznido de Pollito de Zampullin",
   "entity.little_grebe.hurt": "Pollito de Zampullín Herido",
