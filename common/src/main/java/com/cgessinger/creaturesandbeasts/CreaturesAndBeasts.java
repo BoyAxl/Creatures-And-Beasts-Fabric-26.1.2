@@ -48,7 +48,7 @@ public class CreaturesAndBeasts {
     private static final CNBDeferredRegister<CreativeModeTab> TAB_REGISTRY = CNBDeferredRegister.create(MOD_ID, BuiltInRegistries.CREATIVE_MODE_TAB);
     public static final CNBRegistrySupplier<CreativeModeTab> TAB = TAB_REGISTRY.register("tab", () -> CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
             .title(Component.translatable("itemGroup.cnb_tab"))
-            .icon(() -> new ItemStack(CNBItems.GREBE_SPAWN_EGG.get()))
+            .icon(() -> new ItemStack(CNBItems.SPORELING_OVERWORLD_EGG.get()))
             .displayItems((parameters, output) -> CNBItems.addCreativeTabItems(output))
             .build());
 

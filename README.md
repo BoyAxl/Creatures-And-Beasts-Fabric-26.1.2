@@ -40,6 +40,7 @@ All original mod concept, assets, mobs, and gameplay belong to the **Creatures a
 
 - Original authors: **Joosh**, **CGessinger**, **HellionGames**, **BluSpring**
 - Contributor credit from the original metadata: **AzureDoom**
+- Spawn egg textures adapted from the **Modded Omelet** resource pack by **L2**
 - Original project/source reference: <https://github.com/bonsaistudi0s/Creatures_And_Beasts-Forge>
 
 This Fabric port is an unofficial community maintenance effort by **BoyAxl / Axl**, built for personal testing and compatibility work.
