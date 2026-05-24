@@ -43,6 +43,7 @@ import net.minecraft.world.level.*;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.JukeboxBlockEntity;
 import net.minecraft.world.level.gamerules.GameRules;
@@ -60,6 +61,9 @@ import com.geckolib.animation.object.PlayState;
 import com.geckolib.util.GeckoLibUtil;
 
 public class LizardEntity extends Animal implements GeoEntity, Netable {
+    private static final double PANIC_SPEED_MODIFIER = 1.8D;
+    private static final int BREEDING_COOLDOWN_TICKS = 6000;
+
     private static final EntityDataAccessor<String> TYPE = SynchedEntityData.defineId(LizardEntity.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<Boolean> PARTYING = SynchedEntityData.defineId(LizardEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> SAD = SynchedEntityData.defineId(LizardEntity.class, EntityDataSerializers.BOOLEAN);
@@ -128,7 +132,7 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-        this.goalSelector.addGoal(1, new PanicGoal(this, 1.25D));
+        this.goalSelector.addGoal(1, new PanicGoal(this, PANIC_SPEED_MODIFIER));
         this.goalSelector.addGoal(2, new LizardBreedGoal(this, 1.0D));
         this.goalSelector.addGoal(3, new LizardLayEggGoal(this, 1.0D));
         this.goalSelector.addGoal(4, new TemptGoal(this, 1.0D, this::isFood, false) {
@@ -478,10 +482,12 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
             this.lizard = lizard;
         }
 
+        @Override
         public boolean canUse() {
             return super.canUse() && !this.lizard.hasEgg();
         }
 
+        @Override
         protected void breed() {
             ServerPlayer serverplayer = this.animal.getLoveCause();
             if (serverplayer == null && this.partner.getLoveCause() != null) {
@@ -497,6 +503,8 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
             this.lizard.partner = (LizardEntity) this.partner;
             this.animal.resetLove();
             this.partner.resetLove();
+            this.animal.setAge(BREEDING_COOLDOWN_TICKS);
+            this.partner.setAge(BREEDING_COOLDOWN_TICKS);
             RandomSource random = this.animal.getRandom();
             if (this.level.getGameRules().get(GameRules.MOB_DROPS)) {
                 this.level.addFreshEntity(new ExperienceOrb(this.level, this.animal.getX(), this.animal.getY(), this.animal.getZ(), random.nextInt(7) + 1));
@@ -513,10 +521,12 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
             this.lizard = lizard;
         }
 
+        @Override
         public boolean canUse() {
             return this.lizard.hasEgg() && super.canUse();
         }
 
+        @Override
         public boolean canContinueToUse() {
             return super.canContinueToUse() && this.lizard.hasEgg();
         }
@@ -527,6 +537,7 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
             this.lizard.setLayingEgg(false);
         }
 
+        @Override
         public void tick() {
             super.tick();
             BlockPos blockpos = this.lizard.blockPosition();
@@ -535,15 +546,25 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
                     this.lizard.setLayingEgg(true);
                 } else if (this.lizard.layEggCounter > this.adjustedTickDelay(200)) {
                     Level level = this.lizard.level();
-                    level.playSound(null, blockpos, SoundEvents.TURTLE_LAY_EGG, SoundSource.BLOCKS, 0.3F, 0.9F + level.getRandom().nextFloat() * 0.2F);
-                    level.setBlock(this.blockPos.above(), CNBBlocks.LIZARD_EGGS.get().defaultBlockState().setValue(LizardEggBlock.EGGS, this.lizard.random.nextInt(6) + 1), 3);
+                    BlockPos eggPos = this.getEggPlacementPos(level, this.blockPos);
+                    if (eggPos == null) {
+                        this.lizard.setLayingEgg(false);
+                        return;
+                    }
 
-                    LizardEggBlock lizardEggBlock = (LizardEggBlock) level.getBlockState(this.blockPos.above()).getBlock();
-                    lizardEggBlock.setParents(this.lizard.getLizardType(), this.lizard.partner.getLizardType());
+                    level.playSound(null, blockpos, SoundEvents.TURTLE_LAY_EGG, SoundSource.BLOCKS, 0.3F, 0.9F + level.getRandom().nextFloat() * 0.2F);
+                    BlockState eggState = CNBBlocks.LIZARD_EGGS.get().defaultBlockState().setValue(LizardEggBlock.EGGS, this.lizard.random.nextInt(6) + 1);
+                    if (!level.setBlock(eggPos, eggState, 3)) {
+                        this.lizard.setLayingEgg(false);
+                        return;
+                    }
+
+                    if (level.getBlockState(eggPos).getBlock() instanceof LizardEggBlock lizardEggBlock) {
+                        lizardEggBlock.setParents(this.lizard.getLizardType(), this.lizard.partner.getLizardType());
+                    }
 
                     this.lizard.setHasEgg(false);
                     this.lizard.setLayingEgg(false);
-                    this.lizard.setInLoveTime(600);
                 }
 
                 if (this.lizard.isLayingEgg()) {
@@ -555,8 +576,21 @@ public class LizardEntity extends Animal implements GeoEntity, Netable {
             }
         }
 
+        @Override
         protected boolean isValidTarget(LevelReader levelReader, BlockPos pos) {
-            return levelReader.isEmptyBlock(pos.above());
+            return this.getEggPlacementPos(levelReader, pos) != null;
+        }
+
+        @Nullable
+        private BlockPos getEggPlacementPos(LevelReader levelReader, BlockPos surfacePos) {
+            BlockPos eggPos = surfacePos.above();
+            BlockState replacedState = levelReader.getBlockState(eggPos);
+            BlockState eggState = CNBBlocks.LIZARD_EGGS.get().defaultBlockState();
+            return canReplaceWithEgg(replacedState) && eggState.canSurvive(levelReader, eggPos) ? eggPos : null;
+        }
+
+        private boolean canReplaceWithEgg(BlockState state) {
+            return state.isAir() || state.canBeReplaced();
         }
     }
 }

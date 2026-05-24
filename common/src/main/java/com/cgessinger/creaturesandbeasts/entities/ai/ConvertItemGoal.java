@@ -21,6 +21,10 @@ import net.minecraft.world.level.pathfinder.Path;
 import java.util.List;
 
 public class ConvertItemGoal extends Goal {
+    private static final int CONVERT_DURATION_TICKS = 54;
+    private static final int CONVERT_COOLDOWN_TICKS = 20;
+    private static final int CONVERT_PARTICLE_INTERVAL_TICKS = 3;
+
     protected Path path;
     protected ItemEntity itemInstance;
     protected double convertTime;
@@ -47,7 +51,8 @@ public class ConvertItemGoal extends Goal {
             List<ItemEntity> list = this.entityIn.level().getEntitiesOfClass(ItemEntity.class, this.entityIn.getBoundingBox().inflate(this.range, 3.0D, this.range));
 
             for (ItemEntity item : list) {
-                if (item.getItem().is(Items.DIRT) || (item.getItem().isEnchanted() && hasCurse(item.getItem()))) {
+                ItemStack stack = item.getItem();
+                if (isConvertible(stack)) {
                     this.path = this.navigation.createPath(item.getOnPos(), 0);
                     this.itemInstance = item;
                     return path != null;
@@ -56,6 +61,10 @@ public class ConvertItemGoal extends Goal {
         }
 
         return false;
+    }
+
+    private boolean isConvertible(ItemStack stack) {
+        return !stack.isEmpty() && (stack.is(Items.DIRT) || (stack.isEnchanted() && hasCurse(stack)));
     }
 
     private boolean hasCurse(ItemStack stack) {
@@ -85,7 +94,9 @@ public class ConvertItemGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return (!this.navigation.isDone() || this.convertTime > 0) && (!this.itemInstance.isRemoved() || this.entityIn.isInspecting());
+        return this.itemInstance != null
+                && (!this.navigation.isDone() || this.convertTime > 0)
+                && (this.entityIn.isInspecting() || !this.itemInstance.isRemoved());
     }
 
     public void convertItem() {
@@ -95,10 +106,15 @@ public class ConvertItemGoal extends Goal {
             return;
         }
 
-        if (entityIn.getHolding().is(Items.DIRT)) {
+        ItemStack heldItem = entityIn.getHolding();
+        if (heldItem.isEmpty()) {
+            return;
+        }
+
+        if (heldItem.is(Items.DIRT)) {
             entityIn.spawnAtLocation(serverLevel, new ItemStack(Items.MYCELIUM, 1));
         } else {
-            ItemStack returnItem = entityIn.getHolding().copy();
+            ItemStack returnItem = heldItem.copy();
 
             ItemEnchantments enchantments = EnchantmentHelper.getEnchantmentsForCrafting(returnItem);
             Holder<Enchantment> curse = null;
@@ -142,16 +158,21 @@ public class ConvertItemGoal extends Goal {
 
                     entityIn.setInspecting(true);
                     entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, itemInstance.position());
-                    this.convertTime = 54;
+                    this.convertTime = CONVERT_DURATION_TICKS;
 
                 } else {
                     if (--this.convertTime <= 0) {
                         convertItem();
-                        convertDelay = 20;
+                        convertDelay = CONVERT_COOLDOWN_TICKS;
 
-                    } else if (convertTime % 3 == 0) {
+                    } else if (convertTime % CONVERT_PARTICLE_INTERVAL_TICKS == 0) {
+                        ItemStack heldItem = this.entityIn.getHolding();
+                        if (heldItem.isEmpty()) {
+                            return;
+                        }
+
                         entityIn.lookAt(EntityAnchorArgument.Anchor.EYES, itemInstance.position());
-                        entityIn.level().addParticle(new ItemParticleOption(ParticleTypes.ITEM, itemInstance.getItem().getItem()), entityIn.getRandomX(0.5F) + entityIn.getLookAngle().x / 2.0D, entityIn.getRandomY(), entityIn.getRandomZ(0.5F) + entityIn.getLookAngle().z / 2.0D, 4D, 0D, 0D);
+                        entityIn.level().addParticle(new ItemParticleOption(ParticleTypes.ITEM, heldItem.getItem()), entityIn.getRandomX(0.5F) + entityIn.getLookAngle().x / 2.0D, entityIn.getRandomY(), entityIn.getRandomZ(0.5F) + entityIn.getLookAngle().z / 2.0D, 4D, 0D, 0D);
                     }
                 }
 

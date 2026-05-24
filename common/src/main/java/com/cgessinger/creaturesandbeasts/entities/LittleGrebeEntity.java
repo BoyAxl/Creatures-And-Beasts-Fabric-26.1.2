@@ -47,6 +47,8 @@ import java.util.Random;
 import static com.cgessinger.creaturesandbeasts.init.CNBTags.Items.LITTLE_GREBE_FOOD;
 
 public class LittleGrebeEntity extends Animal implements GeoEntity {
+    private static final double PANIC_SPEED_MODIFIER = 1.4D;
+
     private static final EntityDataAccessor<BlockPos> TRAVEL_POS = SynchedEntityData.defineId(LittleGrebeEntity.class, EntityDataSerializers.BLOCK_POS);
     private static final Identifier HEALTH_REDUCTION_ID = Identifier.fromNamespaceAndPath("cnb", "little_grebe_baby_health_reduction");
     public float flapSpeed;
@@ -69,7 +71,7 @@ public class LittleGrebeEntity extends Animal implements GeoEntity {
         this.goalSelector.addGoal(0, new FloatGoal(this));
         this.goalSelector.addGoal(1, new MountAdultGoal(this, 1.2D));
         this.goalSelector.addGoal(2, new SmoothSwimGoal(this));
-        this.goalSelector.addGoal(3, new PanicGoal(this, 1.0D));
+        this.goalSelector.addGoal(3, new PanicGoal(this, PANIC_SPEED_MODIFIER));
         this.goalSelector.addGoal(3, new BreedGoal(this, 1.0D));
         this.goalSelector.addGoal(4, new TemptGoal(this, 1.0D, this::isFood, false));
         this.goalSelector.addGoal(5, new FollowParentGoal(this, 1.25D));
