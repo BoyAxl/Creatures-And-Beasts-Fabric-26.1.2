@@ -32,6 +32,11 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 public class SpearItem extends Item {
+    private static final int THROW_THRESHOLD_TICKS = 10;
+    private static final float PROJECTILE_SPEED = 1.6F;
+    private static final float PROJECTILE_INACCURACY = 1.0F;
+    private static final float MULTISHOT_SPREAD_DEGREES = 10.0F;
+
     public SpearItem(Properties properties) {
         super(properties);
     }
@@ -45,7 +50,7 @@ public class SpearItem extends Item {
 
     @Override
     public ItemUseAnimation getUseAnimation(ItemStack stack) {
-        return ItemUseAnimation.SPEAR;
+        return ItemUseAnimation.TRIDENT;
     }
 
     @Override
@@ -57,7 +62,7 @@ public class SpearItem extends Item {
     public boolean releaseUsing(ItemStack stack, Level level, LivingEntity entity, int useTicks) {
         if (entity instanceof Player player) {
             int i = this.getUseDuration(stack, entity) - useTicks;
-            if (i >= 10 && !level.isClientSide()) {
+            if (i >= THROW_THRESHOLD_TICKS && !level.isClientSide()) {
                 stack.hurtAndBreak(1, player, entity.getUsedItemHand());
                 spawnSpears(stack, player, level);
 
@@ -78,37 +83,37 @@ public class SpearItem extends Item {
         Holder<Enchantment> loyalty = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.LOYALTY);
         int multishotLevel = EnchantmentHelper.getItemEnchantmentLevel(multishot, stack);
         int numberOfSpears = multishotLevel == 0 ? 1 : 3;
-        float[] afloat = getShotPitches(player.getRandom());
+        float[] shotPitches = getShotPitches(player.getRandom());
 
         ItemStack noLoyaltyStack = stack.copy();
         EnchantmentHelper.updateEnchantments(noLoyaltyStack, enchantments -> enchantments.set(loyalty, 0));
 
         for (int i = 0; i < numberOfSpears; i++) {
             if (i == 0) {
-                shootProjectile(level, player, stack, afloat[i], 0.0F, true);
+                shootProjectile(level, player, stack, shotPitches[i], 0.0F, true);
             } else if (i == 1) {
-                shootProjectile(level, player, noLoyaltyStack, afloat[i], -10.0F, false);
+                shootProjectile(level, player, noLoyaltyStack, shotPitches[i], -MULTISHOT_SPREAD_DEGREES, false);
             } else {
-                shootProjectile(level, player, noLoyaltyStack, afloat[i], 10.0F, false);
+                shootProjectile(level, player, noLoyaltyStack, shotPitches[i], MULTISHOT_SPREAD_DEGREES, false);
             }
         }
     }
 
-    private void shootProjectile(Level level, Player player, ItemStack stack, float soundVariation, float randomization, boolean canPickup) {
+    private void shootProjectile(Level level, Player player, ItemStack stack, float soundVariation, float spreadDegrees, boolean canPickup) {
         ThrownCactemSpearEntity thrownSpear = new ThrownCactemSpearEntity(level, player, stack);
-        Vec3 vec31 = player.getUpVector(1.0F);
-        float radians = randomization * Mth.DEG_TO_RAD;
-        float g = Mth.sin(radians / 2f);
+        Vec3 upVector = player.getUpVector(1.0F);
+        float radians = spreadDegrees * Mth.DEG_TO_RAD;
+        float halfAngleSin = Mth.sin(radians / 2.0F);
         Quaternionf quaternion = new Quaternionf(
-                vec31.x() * g,
-                vec31.y() * g,
-                vec31.z() * g,
-                Mth.cos(radians / 2f)
+                upVector.x() * halfAngleSin,
+                upVector.y() * halfAngleSin,
+                upVector.z() * halfAngleSin,
+                Mth.cos(radians / 2.0F)
         );
-        Vec3 vec3 = player.getViewVector(1.0F);
-        Vector3f vector3f = vec3.toVector3f();
-        vector3f.rotate(quaternion);
-        thrownSpear.shoot(vector3f.x(), vector3f.y(), vector3f.z(), 1.6F, 1.0F);
+        Vec3 viewVector = player.getViewVector(1.0F);
+        Vector3f shotVector = viewVector.toVector3f();
+        shotVector.rotate(quaternion);
+        thrownSpear.shoot(shotVector.x(), shotVector.y(), shotVector.z(), PROJECTILE_SPEED, PROJECTILE_INACCURACY);
 
         if (player.getAbilities().instabuild) {
             thrownSpear.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;

@@ -89,6 +89,12 @@ public class SporelingRenderer extends GeoEntityRenderer<SporelingEntity, Living
     }
 
     private static class SporelingHeldItemLayer extends BlockAndItemGeoLayer<SporelingEntity, Void, LivingEntityRenderState> {
+        private static final float HELD_ITEM_SCALE = 0.5F;
+        private static final float HELD_ITEM_X_OFFSET = 0.6F;
+        private static final float HELD_ITEM_Y_OFFSET = 0.1F;
+        private static final float HELD_ITEM_Z_OFFSET = -0.1F;
+        private static final float HELD_ITEM_X_ROT = -90.0F;
+
         public SporelingHeldItemLayer(EntityRendererProvider.Context context, SporelingRenderer renderer) {
             super(context, renderer);
         }
@@ -117,9 +123,10 @@ public class SporelingRenderer extends GeoEntityRenderer<SporelingEntity, Living
         @Override
         protected void submitItemStackRender(PoseStack poseStack, GeoBone bone, ItemStackRenderState itemRenderState, ItemDisplayContext displayContext, LivingEntityRenderState renderState, SubmitNodeCollector submitNodeCollector, int packedLight) {
             poseStack.pushPose();
-            poseStack.scale(0.5F, 0.5F, 0.5F);
-            poseStack.translate(0.6F, 0.1F, -0.1F);
-            poseStack.mulPose(Axis.XP.rotationDegrees(-90.0F));
+            bone.translateAwayFromPivotPoint(poseStack);
+            poseStack.scale(HELD_ITEM_SCALE, HELD_ITEM_SCALE, HELD_ITEM_SCALE);
+            poseStack.translate(HELD_ITEM_X_OFFSET, HELD_ITEM_Y_OFFSET, HELD_ITEM_Z_OFFSET);
+            poseStack.mulPose(Axis.XP.rotationDegrees(HELD_ITEM_X_ROT));
             super.submitItemStackRender(poseStack, bone, itemRenderState, displayContext, renderState, submitNodeCollector, packedLight);
             poseStack.popPose();
         }
