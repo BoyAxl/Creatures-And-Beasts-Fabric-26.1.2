@@ -27,6 +27,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.*;
 import net.minecraft.world.entity.ai.goal.target.*;
+import net.minecraft.world.entity.ai.targeting.TargetingConditions;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -53,6 +54,7 @@ import com.geckolib.cache.animation.keyframeevent.SoundKeyframeData;
 import com.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
+import java.util.UUID;
 
 public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, NeutralMob {
     public static final EntityDataAccessor<Boolean> ATTACKING = SynchedEntityData.defineId(YetiEntity.class, EntityDataSerializers.BOOLEAN);
@@ -62,15 +64,25 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     private static final Identifier HEALTH_REDUCTION_ID = Identifier.fromNamespaceAndPath(CreaturesAndBeasts.MOD_ID, "yeti_health_reduction");
-    private final float babyHealth = 20.0F;
+    private static final float SWEET_BERRY_MIN_HEAL_AMOUNT = 2.0F;
+    private static final float SWEET_BERRY_MAX_HEAL_AMOUNT = 4.0F;
+    private static final double BABY_PROTECTION_RANGE = 8.0D;
+    private static final double BABY_PROTECTION_VERTICAL_RANGE = 4.0D;
+    private static final double BABY_THREAT_RANGE = 4.0D;
+    private static final double BABY_THREAT_VERTICAL_RANGE = 2.0D;
+    private static final int MELON_TAME_RETRY_INTERVAL_TICKS = 20 * 60;
+    private static final float BABY_HEALTH = 20.0F;
 
     private static final UniformInt PERSISTENT_ANGER_TIME = TimeUtil.rangeOfSeconds(20, 39);
     private long persistentAngerEndTime;
     @Nullable
     private EntityReference<LivingEntity> persistentAngerTarget;
+    @Nullable
+    private EntityReference<LivingEntity> melonFeeder;
 
     private int eatTimer;
     private int attackTimer;
+    private long nextMelonTameRetryGameTime;
 
     public YetiEntity(EntityType<YetiEntity> type, Level worldIn) {
         super(type, worldIn);
@@ -91,6 +103,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     public void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         output.putBoolean("Passive", this.isPassive());
+        output.storeNullable("MelonFeeder", EntityReference.codec(), this.melonFeeder);
         this.addPersistentAngerSaveData(output);
     }
 
@@ -98,6 +111,8 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     public void readAdditionalSaveData(ValueInput input) {
         super.readAdditionalSaveData(input);
         this.setPassive(input.getBooleanOr("Passive", false));
+        this.melonFeeder = EntityReference.read(input, "MelonFeeder");
+        this.migrateUntamedBabyOwnerReference();
         this.readPersistentAngerSaveData(this.level(), input);
     }
 
@@ -108,7 +123,8 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
                 .add(Attributes.MOVEMENT_SPEED, 0.3D)
                 .add(Attributes.ATTACK_DAMAGE, 16.0D)
                 .add(Attributes.ATTACK_SPEED, 0.1D)
-                .add(Attributes.KNOCKBACK_RESISTANCE, 0.7D);
+                .add(Attributes.KNOCKBACK_RESISTANCE, 0.7D)
+                .add(Attributes.STEP_HEIGHT, 1.0D);
     }
 
     @Override
@@ -117,20 +133,30 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         this.goalSelector.addGoal(1, new FloatGoal(this));
         this.goalSelector.addGoal(1, new BreedGoal(this, 1.0D));
         this.goalSelector.addGoal(2, new YetiAttackGoal(this, 1.2D, true));
-        this.goalSelector.addGoal(3, new FollowParentGoal(this, 1.0D));
-        this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 12.0F));
-        this.goalSelector.addGoal(5, new RandomLookAroundGoal(this));
-        this.goalSelector.addGoal(6, new WaterAvoidingRandomStrollGoal(this, 1.0D, 0.01F));
+        this.goalSelector.addGoal(3, new FollowOwnerGoal(this, 1.0D, 10.0F, 2.0F));
+        this.goalSelector.addGoal(4, new FollowParentGoal(this, 1.0D));
+        this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, 12.0F));
+        this.goalSelector.addGoal(6, new RandomLookAroundGoal(this));
+        this.goalSelector.addGoal(7, new WaterAvoidingRandomStrollGoal(this, 1.0D, 0.01F));
         this.targetSelector.addGoal(1, new OwnerHurtByTargetGoal(this));
         this.targetSelector.addGoal(2, new OwnerHurtTargetGoal(this));
-        this.targetSelector.addGoal(3, (new HurtByTargetGoal(this)).setAlertOthers());
-        this.targetSelector.addGoal(4, new TargetPlayerGoal(this));
+        this.targetSelector.addGoal(3, (new YetiHurtByTargetGoal(this)).setAlertOthers());
+        this.targetSelector.addGoal(4, new ProtectBabyGoal(this));
         this.targetSelector.addGoal(5, new ResetUniversalAngerTargetGoal<>(this, true));
     }
 
     @Override
     public void aiStep() {
         super.aiStep();
+
+        this.clearInvalidTarget();
+
+        if (this.level() instanceof ServerLevel serverLevel) {
+            this.updatePersistentAnger(serverLevel, true);
+            if (this.melonFeeder != null && !this.isBaby() && this.level().getGameTime() >= this.nextMelonTameRetryGameTime) {
+                this.tryCompleteMelonTame(serverLevel);
+            }
+        }
 
         if (this.isEating()) {
             this.navigation.stop();
@@ -143,12 +169,31 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         }
 
         if (this.eatTimer == 40) {
+            boolean holdingMelon = this.getHolding().is(Items.MELON_SLICE);
+            boolean holdingSweetBerries = this.getHolding().is(Items.SWEET_BERRIES);
+
             if (this.isBaby()) {
-                this.ageUp((int) (-this.getAge() / 20F * 0.1F), true);
+                if (holdingMelon) {
+                    this.setPassive(true);
+                }
+                this.ageUp(AgeableMob.getSpeedUpSecondsWhenFeeding(-this.getAge()), true);
+                if (!this.level().isClientSide() && (holdingMelon || holdingSweetBerries)) {
+                    this.pacifyNearbyWildAdults();
+                }
             }
-            if (this.getHolding().is(Items.MELON_SLICE)) {
-                this.setTarget(null);
-                this.setPassive(true);
+            if (holdingMelon) {
+                if (!this.isTame()) {
+                    if (this.isBaby()) {
+                        this.setTarget(null);
+                        this.stopBeingAngry();
+                        this.setPassive(true);
+                    } else {
+                        this.pacify();
+                    }
+                } else {
+                    this.setTarget(null);
+                    this.stopBeingAngry();
+                }
             }
             this.setHolding(ItemStack.EMPTY);
         } else if (this.eatTimer == 0) {
@@ -193,6 +238,64 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         this.setTimeToRemainAngry(PERSISTENT_ANGER_TIME.sample(this.random));
     }
 
+    @Nullable
+    @Override
+    public LivingEntity getOwner() {
+        return this.isTame() ? super.getOwner() : null;
+    }
+
+    @Override
+    public void setTarget(@Nullable LivingEntity target) {
+        if (this.shouldRejectTarget(target)) {
+            super.setTarget(null);
+            return;
+        }
+
+        super.setTarget(target);
+    }
+
+    @Override
+    public boolean wantsToAttack(LivingEntity target, LivingEntity owner) {
+        return !this.shouldRejectTarget(target) && super.wantsToAttack(target, owner);
+    }
+
+    private boolean isHostileProtectiveTarget(LivingEntity target) {
+        return !(target instanceof YetiEntity) && target instanceof Enemy;
+    }
+
+    private boolean isBabyProtectionThreat(LivingEntity target) {
+        return target instanceof Player || this.isHostileProtectiveTarget(target);
+    }
+
+    private boolean isOwnedBySameOwner(@Nullable LivingEntity entity, @Nullable LivingEntity owner) {
+        return owner != null && entity instanceof TamableAnimal tamableAnimal && tamableAnimal.isOwnedBy(owner);
+    }
+
+    private boolean isPacifiedWildYetiTarget(@Nullable LivingEntity entity) {
+        return this.isTame() && entity instanceof YetiEntity yeti && !yeti.isTame() && yeti.isPassive();
+    }
+
+    private boolean shouldRejectTarget(@Nullable LivingEntity target) {
+        if (target == null) {
+            return false;
+        }
+
+        LivingEntity owner = this.getOwner();
+        return target == owner
+                || this.isOwnedBySameOwner(target, owner)
+                || this.isPacifiedWildYetiTarget(target)
+                || (target instanceof YetiEntity yeti && yeti.isBaby())
+                || (!this.isTame() && this.isPassive() && !this.isHostileProtectiveTarget(target));
+    }
+
+    private void clearInvalidTarget() {
+        if (this.shouldRejectTarget(this.getTarget())) {
+            super.setTarget(null);
+            this.setAttacking(false);
+            this.navigation.stop();
+        }
+    }
+
     @Override
     public float getWalkTargetValue(BlockPos pos, LevelReader level) {
         return 10.0F;
@@ -211,16 +314,37 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         ItemStack item = player.getItemInHand(hand);
 
+        if (!this.isEating() && this.canUseMelonSlice(item)) {
+            if (this.level().isClientSide()) {
+                this.showBabyGrowthParticles();
+                return InteractionResult.CONSUME;
+            }
+
+            if (this.isBaby()) {
+                this.setPassive(true);
+                this.melonFeeder = EntityReference.of(player);
+                this.setOwnerReference(null);
+            } else {
+                this.pacify();
+            }
+            return this.startEat(player, hand, item);
+        }
+
         if (!(this.isEating() || this.isAttacking())) {
-            if (!this.level().isClientSide() && item.getItem() == Items.MELON_SLICE && !this.isPassive()) {
-                this.tame(player);
-                return this.startEat(player, item.copy());
-            } else if (item.getItem() == Items.SWEET_BERRIES) {
-                if (!this.level().isClientSide() && this.getAge() == 0 && this.canFallInLove()) {
+            if (item.is(Items.SWEET_BERRIES)) {
+                if (this.level().isClientSide()) {
+                    this.showBabyGrowthParticles();
+                    return InteractionResult.CONSUME;
+                }
+
+                if (this.canHealWithSweetBerries(item)) {
+                    this.heal(this.getSweetBerryHealAmount());
+                    return this.startEat(player, hand, item);
+                } else if (this.canBreedWithSweetBerries(player)) {
                     this.setInLove(player);
-                    return this.startEat(player, item.copy());
+                    return this.startEat(player, hand, item);
                 } else if (this.isBaby()) {
-                    return this.startEat(player, item.copy());
+                    return this.startEat(player, hand, item);
                 }
             }
         }
@@ -232,16 +356,77 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         return InteractionResult.PASS;
     }
 
+    private void showBabyGrowthParticles() {
+        if (this.isBaby()) {
+            this.ageUp(0, true);
+        }
+    }
+
+    private void migrateUntamedBabyOwnerReference() {
+        EntityReference<LivingEntity> ownerReference = this.getOwnerReference();
+        if (!this.isTame() && ownerReference != null) {
+            if (this.isBaby() && this.melonFeeder == null) {
+                this.melonFeeder = ownerReference;
+            }
+            this.setOwnerReference(null);
+        }
+    }
+
+    private void tryCompleteMelonTame(ServerLevel serverLevel) {
+        if (this.isTame() || this.isBaby() || this.melonFeeder == null) {
+            return;
+        }
+
+        UUID feederUuid = this.melonFeeder.getUUID();
+        ServerPlayer player = serverLevel.getServer().getPlayerList().getPlayer(feederUuid);
+        if (player != null) {
+            this.tame(player);
+            this.melonFeeder = null;
+            this.setPassive(false);
+            this.navigation.stop();
+            this.setTarget(null);
+            this.level().broadcastEntityEvent(this, (byte)7);
+        } else {
+            this.nextMelonTameRetryGameTime = this.level().getGameTime() + MELON_TAME_RETRY_INTERVAL_TICKS;
+        }
+    }
+
+    private boolean canUseMelonSlice(ItemStack stack) {
+        return stack.is(Items.MELON_SLICE) && !this.isTame() && !this.isPassive();
+    }
+
+    private boolean canHealWithSweetBerries(ItemStack stack) {
+        return stack.is(Items.SWEET_BERRIES) && this.isTame() && !this.isBaby() && this.getHealth() < this.getMaxHealth();
+    }
+
+    private float getSweetBerryHealAmount() {
+        return this.random.nextBoolean() ? SWEET_BERRY_MAX_HEAL_AMOUNT : SWEET_BERRY_MIN_HEAL_AMOUNT;
+    }
+
+    private boolean canBreedWithSweetBerries(Player player) {
+        return this.getAge() == 0 && this.canFallInLove() && !this.isAngryAtPlayer(player);
+    }
+
+    private boolean isAngryAtPlayer(Player player) {
+        if (this.getTarget() == player || this.getLastHurtByMob() == player) {
+            return true;
+        }
+        if (this.level() instanceof ServerLevel serverLevel) {
+            return this.isAngryAt(player, serverLevel);
+        }
+        return false;
+    }
+
     /*
      * If a Yeti is a baby, apply the max health reduction to the yeti and set its health to the new max
      */
     @Override
     public void setAge(int age) {
         super.setAge(age);
-        double MAX_HEALTH = this.getAttribute(Attributes.MAX_HEALTH).getValue();
-        if (isBaby() && MAX_HEALTH > this.babyHealth) {
-            this.getAttribute(Attributes.MAX_HEALTH).addOrUpdateTransientModifier(new AttributeModifier(HEALTH_REDUCTION_ID, this.babyHealth - MAX_HEALTH, AttributeModifier.Operation.ADD_VALUE));
-            this.setHealth(this.babyHealth);
+        double maxHealth = this.getAttribute(Attributes.MAX_HEALTH).getValue();
+        if (isBaby() && maxHealth > BABY_HEALTH) {
+            this.getAttribute(Attributes.MAX_HEALTH).addOrUpdateTransientModifier(new AttributeModifier(HEALTH_REDUCTION_ID, BABY_HEALTH - maxHealth, AttributeModifier.Operation.ADD_VALUE));
+            this.setHealth(BABY_HEALTH);
         }
     }
 
@@ -251,18 +436,14 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
     @Override
     protected void ageBoundaryReached() {
         super.ageBoundaryReached();
-        float percentHealth = this.getHealth() / this.babyHealth;
+        float percentHealth = this.getHealth() / BABY_HEALTH;
         this.getAttribute(Attributes.MAX_HEALTH).removeModifier(HEALTH_REDUCTION_ID);
         this.setHealth(percentHealth * (float) this.getAttribute(Attributes.MAX_HEALTH).getValue());
         this.setEating(false);
         this.setHolding(ItemStack.EMPTY);
 
-        if (!this.level().isClientSide() && this.isPassive() && this.getOwner() instanceof ServerPlayer player) {
-            this.tame(player);
-            this.setPassive(false);
-            this.navigation.stop();
-            this.setTarget(null);
-            this.level().broadcastEntityEvent(this, (byte)7);
+        if (this.level() instanceof ServerLevel serverLevel) {
+            this.tryCompleteMelonTame(serverLevel);
         }
     }
 
@@ -306,14 +487,36 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         this.entityData.set(HELD_ITEM, stack);
     }
 
-    private InteractionResult startEat(Player player, ItemStack stack) {
+    private InteractionResult startEat(Player player, InteractionHand hand, ItemStack stack) {
         this.setHolding(stack.copyWithCount(1));
-        this.usePlayerItem(player, player.getUsedItemHand(), stack);
+        if (!this.level().isClientSide()) {
+            this.usePlayerItem(player, hand, stack);
+        }
         this.setEating(true);
         this.gameEvent(GameEvent.ENTITY_INTERACT, player);
         SoundEvent sound = this.isBaby() ? CNBSoundEvents.YETI_BABY_EAT.get() : CNBSoundEvents.YETI_ADULT_EAT.get();
         this.playSound(sound, 1.1F, 1F);
         return InteractionResult.SUCCESS;
+    }
+
+    private void pacifyNearbyWildAdults() {
+        List<YetiEntity> nearbyYetis = this.level().getEntitiesOfClass(YetiEntity.class, this.getBoundingBox().inflate(BABY_PROTECTION_RANGE, BABY_PROTECTION_VERTICAL_RANGE, BABY_PROTECTION_RANGE));
+
+        for (YetiEntity yeti : nearbyYetis) {
+            if (!yeti.isBaby() && !yeti.isTame()) {
+                yeti.pacify();
+            }
+        }
+    }
+
+    private void pacify() {
+        this.setTarget(null);
+        this.setLastHurtByMob(null);
+        this.stopBeingAngry();
+        this.setPassive(true);
+        this.setAttacking(false);
+        this.setOwnerReference(null);
+        this.navigation.stop();
     }
 
     @Override
@@ -348,8 +551,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         List<LivingEntity> list = this.level().getEntitiesOfClass(LivingEntity.class, this.getBoundingBox().inflate(1.5D, 1.0D, 1.5D));
 
         for (LivingEntity entity : list) {
-            LivingEntity owner = this.getOwner();
-            if ((entity instanceof Player && this.isOwnedBy(entity)) || (entity instanceof YetiEntity yeti && owner != null && yeti.isOwnedBy(owner))) {
+            if (this.shouldSkipAreaAttackTarget(entity)) {
                 continue;
             }
             if (this.level() instanceof ServerLevel serverLevel) {
@@ -358,24 +560,47 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         }
     }
 
+    private boolean shouldSkipAreaAttackTarget(LivingEntity entity) {
+        if (entity == this || (entity instanceof Player && this.isOwnedBy(entity))) {
+            return true;
+        }
+
+        if (this.shouldRejectTarget(entity)) {
+            return true;
+        }
+
+        if (entity instanceof YetiEntity yeti) {
+            return this.getTarget() != yeti;
+        }
+
+        return false;
+    }
+
     @Override
     public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+        boolean breaksPacification = this.shouldDamageBreakPacification(source);
+
         if (this.isBaby()) {
-            List<YetiEntity> list = this.level().getEntitiesOfClass(YetiEntity.class, this.getBoundingBox().inflate(8.0D, 4.0D, 8.0D));
+            List<YetiEntity> list = this.level().getEntitiesOfClass(YetiEntity.class, this.getBoundingBox().inflate(BABY_PROTECTION_RANGE, BABY_PROTECTION_VERTICAL_RANGE, BABY_PROTECTION_RANGE));
 
             for (YetiEntity yeti : list) {
-                if (!yeti.isBaby() && !yeti.isTame()) {
+                if (breaksPacification && !yeti.isBaby() && !yeti.isTame()) {
                     yeti.setPassive(false);
                     yeti.setOwnerReference(null);
                 }
             }
         }
 
-        if (!this.isTame()) {
+        if (breaksPacification && !this.isTame() && !this.isBaby()) {
             this.setPassive(false);
             this.setOwnerReference(null);
         }
         return super.hurtServer(level, source, amount);
+    }
+
+    private boolean shouldDamageBreakPacification(DamageSource source) {
+        Entity attacker = source.getEntity();
+        return attacker != null && !(attacker instanceof Enemy);
     }
 
     @Override
@@ -488,30 +713,92 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
         return this.factory;
     }
 
-    static class TargetPlayerGoal extends NearestAttackableTargetGoal<Player> {
-        private final YetiEntity yeti;
+    static class YetiHurtByTargetGoal extends HurtByTargetGoal {
+        public YetiHurtByTargetGoal(YetiEntity yeti) {
+            super(yeti);
+        }
 
-        public TargetPlayerGoal(YetiEntity yeti) {
-            super(yeti, Player.class, 20, true, true, null);
+        @Override
+        protected void alertOther(Mob mob, LivingEntity target) {
+            if (mob instanceof YetiEntity yeti && (yeti.isTame() || yeti.shouldRejectTarget(target))) {
+                return;
+            }
+
+            super.alertOther(mob, target);
+        }
+    }
+
+    static class ProtectBabyGoal extends TargetGoal {
+        private static final TargetingConditions THREAT_TARGETING = TargetingConditions.forCombat().range(BABY_PROTECTION_RANGE + BABY_THREAT_RANGE);
+        private final YetiEntity yeti;
+        @Nullable
+        private LivingEntity threat;
+
+        public ProtectBabyGoal(YetiEntity yeti) {
+            super(yeti, true);
             this.yeti = yeti;
         }
 
         @Override
         public boolean canUse() {
-            if (!this.yeti.isBaby() && !this.yeti.isPassive() && super.canUse()) {
-                for (YetiEntity yeti : yeti.level().getEntitiesOfClass(YetiEntity.class, yeti.getBoundingBox().inflate(8.0D, 4.0D, 8.0D))) {
-                    if (yeti.isBaby()) {
-                        return true;
-                    }
-                }
-
+            if (!this.canProtectBabies()) {
+                return false;
             }
-            return false;
+
+            this.threat = this.findThreatNearBaby();
+            return this.threat != null;
         }
 
         @Override
-        protected double getFollowDistance() {
-            return super.getFollowDistance() * 0.5D;
+        public boolean canContinueToUse() {
+            return this.canProtectBabies() && super.canContinueToUse();
+        }
+
+        @Override
+        public void start() {
+            this.yeti.setTarget(this.threat);
+            super.start();
+        }
+
+        private boolean canProtectBabies() {
+            return !this.yeti.isBaby() && !this.yeti.isTame();
+        }
+
+        @Nullable
+        private LivingEntity findThreatNearBaby() {
+            LivingEntity closestThreat = null;
+            double closestDistance = Double.MAX_VALUE;
+            List<YetiEntity> nearbyYetis = this.yeti.level().getEntitiesOfClass(YetiEntity.class, this.yeti.getBoundingBox().inflate(BABY_PROTECTION_RANGE, BABY_PROTECTION_VERTICAL_RANGE, BABY_PROTECTION_RANGE));
+
+            for (YetiEntity baby : nearbyYetis) {
+                if (!baby.isBaby()) {
+                    continue;
+                }
+
+                List<LivingEntity> threats = baby.level().getEntitiesOfClass(LivingEntity.class, baby.getBoundingBox().inflate(BABY_THREAT_RANGE, BABY_THREAT_VERTICAL_RANGE, BABY_THREAT_RANGE));
+
+                for (LivingEntity threat : threats) {
+                    if (!this.isThreat(threat)) {
+                        continue;
+                    }
+
+                    double distance = baby.distanceToSqr(threat);
+                    if (distance < closestDistance) {
+                        closestThreat = threat;
+                        closestDistance = distance;
+                    }
+                }
+            }
+
+            return closestThreat;
+        }
+
+        private boolean isThreat(LivingEntity entity) {
+            if (entity == this.yeti || !this.yeti.isBabyProtectionThreat(entity)) {
+                return false;
+            }
+
+            return (!this.yeti.isPassive() || this.yeti.isHostileProtectiveTarget(entity)) && this.canAttack(entity, THREAT_TARGETING);
         }
     }
 
@@ -525,15 +812,15 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
 
         @Override
         public boolean canContinueToUse() {
-            return super.canContinueToUse() && !this.yeti.isBaby();
+            return !this.yeti.isBaby() && !this.yeti.shouldRejectTarget(this.yeti.getTarget()) && super.canContinueToUse();
         }
 
         @Override
         public boolean canUse() {
-            if (this.yeti.getTarget() instanceof TamableAnimal tamableAnimal && this.yeti.isTame() && this.yeti.getOwner() != null && this.yeti.getOwner().equals(tamableAnimal.getOwner())) {
+            if (this.yeti.isBaby() || this.yeti.shouldRejectTarget(this.yeti.getTarget())) {
                 return false;
             }
-            return super.canUse() && !this.yeti.isBaby() && this.yeti.getTarget() != this.yeti.getOwner();
+            return super.canUse();
         }
 
         @Override

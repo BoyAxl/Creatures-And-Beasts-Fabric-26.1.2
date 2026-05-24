@@ -69,6 +69,7 @@ public class YetiRenderer extends GeoEntityRenderer<YetiEntity, LivingEntityRend
         @Override
         protected void submitItemStackRender(PoseStack poseStack, GeoBone bone, ItemStackRenderState itemRenderState, ItemDisplayContext displayContext, LivingEntityRenderState renderState, SubmitNodeCollector submitNodeCollector, int packedLight) {
             poseStack.pushPose();
+            bone.translateAwayFromPivotPoint(poseStack);
 
             if (renderState.getOrDefaultGeckolibData(BABY, false)) {
                 poseStack.translate(0.05D, 0.3D, 0.15D);
