@@ -1,6 +1,7 @@
 package com.cgessinger.creaturesandbeasts;
 
 import com.cgessinger.creaturesandbeasts.config.CNBConfig;
+import com.cgessinger.creaturesandbeasts.entities.MinipadEntity;
 import com.cgessinger.creaturesandbeasts.events.CNBEvents;
 import com.cgessinger.creaturesandbeasts.init.*;
 import com.cgessinger.creaturesandbeasts.util.BiomeSpawns;
@@ -145,12 +146,7 @@ public class CreaturesAndBeasts {
             null
         );
 
-        spawns.addSpawn(
-            biome -> biome.is(Biomes.SWAMP),
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.MINIPAD.get(), 20, 3, 6),
-            null
-        );
+        this.addMinipadSpawns(spawns);
 
         spawns.addSpawn(
             biome -> biome.is(Biomes.MUSHROOM_FIELDS),
@@ -205,6 +201,21 @@ public class CreaturesAndBeasts {
             biome -> biome.is(Biomes.FROZEN_PEAKS),
             MobCategory.CREATURE,
             BiomeSpawns.spawn(CNBEntityTypes.YETI.get(), 2, 2, 3),
+            null
+        );
+    }
+
+    private void addMinipadSpawns(BiomeSpawns spawns) {
+        spawns.addSpawn(
+            MinipadEntity::isMinipadSpawnBiome,
+            MobCategory.CREATURE,
+            BiomeSpawns.spawn(CNBEntityTypes.MINIPAD.get(), 20, 3, 5),
+            null
+        );
+        spawns.addSpawn(
+            MinipadEntity::isMinipadSpawnBiome,
+            MobCategory.WATER_AMBIENT,
+            BiomeSpawns.spawn(CNBEntityTypes.MINIPAD.get(), 45, 3, 5),
             null
         );
     }

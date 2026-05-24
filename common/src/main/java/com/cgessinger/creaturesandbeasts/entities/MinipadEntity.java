@@ -1,12 +1,14 @@
 package com.cgessinger.creaturesandbeasts.entities;
 
 import com.cgessinger.creaturesandbeasts.entities.ai.ReachableBlockTargetGoal;
+import com.cgessinger.creaturesandbeasts.entities.ai.SmoothSwimGoal;
 import com.cgessinger.creaturesandbeasts.init.CNBMinipadTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import com.cgessinger.creaturesandbeasts.util.MinipadGlow;
 import com.cgessinger.creaturesandbeasts.util.MinipadType;
 import com.cgessinger.creaturesandbeasts.util.ShearableMobInteraction;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -32,13 +34,17 @@ import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.NaturalSpawner;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.storage.ValueInput;
@@ -69,6 +75,11 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     private static final RawAnimation FLOAT_ANIMATION = RawAnimation.begin().thenLoop("minipad_float");
     private static final RawAnimation WALK_ANIMATION = RawAnimation.begin().thenLoop("minipad_walk");
     private static final double WATER_COLLISION_HEIGHT = 7.0D;
+    private static final int SURFACE_SPAWN_TOLERANCE = 2;
+    private static final int MAX_STILL_WATER_COLUMN_SEARCH = 24;
+    private static final double STILL_WATER_FLOW_EPSILON = 1.0E-7D;
+    private static final double WATER_FLOAT_DAMPING = 0.5D;
+    private static final double WATER_FLOAT_LIFT = 0.03D;
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     private int shearedTimer;
@@ -128,7 +139,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     @Override
     protected void registerGoals() {
-        this.goalSelector.addGoal(0, new MinipadFloatGoal(this));
+        this.goalSelector.addGoal(0, new SmoothSwimGoal(this));
         this.goalSelector.addGoal(1, new MinipadPanicGoal(this, 1.25D));
         this.goalSelector.addGoal(2, new MinipadReturnToWaterGoal(this, 1.0D));
         this.goalSelector.addGoal(3, new MinipadRandomStrollGoal(this, 1.0D, 60, 240));
@@ -183,8 +194,97 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
         return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData);
     }
 
-    public static boolean checkMinipadSpawnRules(EntityType<MinipadEntity> animal, LevelAccessor worldIn, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
-        return true;
+    public static boolean checkMinipadSpawnRules(EntityType<MinipadEntity> entityType, LevelAccessor level, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
+        if (!isNaturalMinipadSpawn(reason)) {
+            return true;
+        }
+
+        Holder<Biome> biome = level.getBiome(pos);
+
+        if (isSwampBiome(biome)) {
+            return isWaterHabitatSpawn(entityType, level, pos) || isSurfaceGroundSpawn(entityType, level, pos);
+        }
+
+        return isCaveBiome(biome) && hasSwampSurfaceBiome(level, pos) && isWaterHabitatSpawn(entityType, level, pos);
+    }
+
+    public static boolean isMinipadSpawnBiome(Holder<Biome> biome) {
+        return isSwampBiome(biome) || isCaveBiome(biome);
+    }
+
+    private static boolean isNaturalMinipadSpawn(EntitySpawnReason reason) {
+        return reason == EntitySpawnReason.NATURAL || reason == EntitySpawnReason.CHUNK_GENERATION;
+    }
+
+    private static boolean hasSwampSurfaceBiome(LevelAccessor level, BlockPos pos) {
+        BlockPos surfacePos = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, pos);
+        return isSwampBiome(level.getBiome(surfacePos));
+    }
+
+    private static boolean isSwampBiome(Holder<Biome> biome) {
+        return biome.is(Biomes.SWAMP) || biome.is(Biomes.MANGROVE_SWAMP);
+    }
+
+    private static boolean isCaveBiome(Holder<Biome> biome) {
+        return biome.is(Biomes.LUSH_CAVES) || biome.is(Biomes.DRIPSTONE_CAVES);
+    }
+
+    private static boolean isWaterHabitatSpawn(EntityType<MinipadEntity> entityType, LevelAccessor level, BlockPos pos) {
+        return isStillWaterColumnSpawn(entityType, level, pos);
+    }
+
+    private static boolean isStillWaterColumnSpawn(EntityType<MinipadEntity> entityType, LevelAccessor level, BlockPos pos) {
+        return SpawnPlacementTypes.IN_WATER.isSpawnPositionOk(level, pos, entityType)
+                && hasStillWaterColumnToOpenSurface(entityType, level, pos);
+    }
+
+    private static boolean isSurfaceGroundSpawn(EntityType<MinipadEntity> entityType, LevelAccessor level, BlockPos pos) {
+        return isNearSurface(level, pos)
+                && level.getRawBrightness(pos, 0) > 8
+                && SpawnPlacementTypes.ON_GROUND.isSpawnPositionOk(level, pos, entityType);
+    }
+
+    private static boolean isNearSurface(LevelAccessor level, BlockPos pos) {
+        return pos.getY() >= level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, pos).getY() - SURFACE_SPAWN_TOLERANCE;
+    }
+
+    private static boolean hasStillWaterColumnToOpenSurface(EntityType<MinipadEntity> entityType, LevelAccessor level, BlockPos waterPos) {
+        BlockPos.MutableBlockPos mutablePos = waterPos.mutable();
+
+        for (int checkedBlocks = 0; checkedBlocks <= MAX_STILL_WATER_COLUMN_SEARCH; ++checkedBlocks) {
+            if (isOpenSurfaceAir(entityType, level, mutablePos)) {
+                return true;
+            }
+
+            if (!isStillWater(level, mutablePos)) {
+                return false;
+            }
+
+            mutablePos.move(0, 1, 0);
+        }
+
+        return false;
+    }
+
+    private static boolean isOpenSurfaceAir(EntityType<MinipadEntity> entityType, LevelAccessor level, BlockPos pos) {
+        return isValidEmptySpawnBlock(entityType, level, pos)
+                && isValidEmptySpawnBlock(entityType, level, pos.above());
+    }
+
+    private static boolean isValidEmptySpawnBlock(EntityType<MinipadEntity> entityType, LevelAccessor level, BlockPos pos) {
+        if (!level.getWorldBorder().isWithinBounds(pos)) {
+            return false;
+        }
+
+        BlockState blockState = level.getBlockState(pos);
+        return NaturalSpawner.isValidEmptySpawnBlock(level, pos, blockState, blockState.getFluidState(), entityType);
+    }
+
+    private static boolean isStillWater(LevelAccessor level, BlockPos pos) {
+        FluidState fluidState = level.getFluidState(pos);
+        return fluidState.is(FluidTags.WATER)
+                && fluidState.isSource()
+                && fluidState.getFlow(level, pos).lengthSqr() <= STILL_WATER_FLOW_EPSILON;
     }
 
     @Override
@@ -229,16 +329,18 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     }
 
     private void floatMinipad() {
-        if (this.isInWater()) {
-            CollisionContext collisionContext = CollisionContext.of(this);
-            if (collisionContext.isAbove(this.getLiquidCollisionShape(), this.blockPosition(), true)
-                    && !this.level().getFluidState(this.blockPosition().above()).is(FluidTags.WATER)) {
-                this.setOnGround(true);
-            } else {
-                this.setDeltaMovement(this.getDeltaMovement().scale(0.5D).add(0.0D, 0.1D, 0.0D));
-            }
+        if (!this.isInWater()) {
+            return;
         }
 
+        CollisionContext collisionContext = CollisionContext.of(this);
+        if (collisionContext.isAbove(this.getLiquidCollisionShape(), this.blockPosition(), true)
+                && !this.level().getFluidState(this.blockPosition().above()).is(FluidTags.WATER)) {
+            this.setOnGround(true);
+            return;
+        }
+
+        this.setDeltaMovement(this.getDeltaMovement().multiply(1.0D, WATER_FLOAT_DAMPING, 1.0D).add(0.0D, WATER_FLOAT_LIFT, 0.0D));
     }
 
     @Override
@@ -416,24 +518,6 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     @Override
     public AnimatableInstanceCache getAnimatableInstanceCache() {
         return this.factory;
-    }
-
-    static class MinipadFloatGoal extends FloatGoal {
-        private final MinipadEntity minipad;
-
-        public MinipadFloatGoal(MinipadEntity minipad) {
-            super(minipad);
-            this.minipad = minipad;
-        }
-
-        @Override
-        public void tick() {
-            if (this.minipad.getFluidHeight(FluidTags.WATER) > 0.5D) {
-                this.minipad.getJumpControl().jump();
-            } else {
-                this.minipad.setDeltaMovement(this.minipad.getDeltaMovement().add(0.0D, 0.005D, 0.0D));
-            }
-        }
     }
 
     static class MinipadPanicGoal extends PanicGoal {
