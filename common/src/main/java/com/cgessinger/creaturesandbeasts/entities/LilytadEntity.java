@@ -6,7 +6,9 @@ import com.cgessinger.creaturesandbeasts.init.CNBLilytadTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import com.cgessinger.creaturesandbeasts.util.LilytadType;
 import com.cgessinger.creaturesandbeasts.util.ShearableMobInteraction;
+import com.cgessinger.creaturesandbeasts.util.SwampHabitatSpawnRules;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -37,6 +39,7 @@ import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -57,6 +60,8 @@ import java.util.List;
 public class LilytadEntity extends Animal implements Shearable, GeoEntity, FindWaterOneDeepGoal.DeepWaterFallback {
     public static final EntityDataAccessor<String> TYPE = SynchedEntityData.defineId(LilytadEntity.class, EntityDataSerializers.STRING);
     public static final EntityDataAccessor<Boolean> SHEARED = SynchedEntityData.defineId(LilytadEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final int SURFACE_SPAWN_TOLERANCE = 2;
+
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     private int shearedTimer;
     private int deepWaterFallbackUntilTick;
@@ -160,8 +165,32 @@ public class LilytadEntity extends Animal implements Shearable, GeoEntity, FindW
         return super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData);
     }
 
-    public static boolean checkLilytadSpawnRules(EntityType<LilytadEntity> animal, LevelAccessor worldIn, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
-        return true;
+    public static boolean checkLilytadSpawnRules(EntityType<LilytadEntity> entityType, LevelAccessor level, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
+        if (!SwampHabitatSpawnRules.isNaturalSpawn(reason)) {
+            return true;
+        }
+
+        Holder<Biome> biome = level.getBiome(pos);
+
+        if (SwampHabitatSpawnRules.isSwampBiome(biome)) {
+            return isShallowWaterHabitatSpawn(entityType, level, pos) || isSurfaceGroundSpawn(entityType, level, pos);
+        }
+
+        return SwampHabitatSpawnRules.isCaveBiome(biome)
+                && SwampHabitatSpawnRules.hasSwampSurfaceBiome(level, pos)
+                && isShallowWaterHabitatSpawn(entityType, level, pos);
+    }
+
+    public static boolean isLilytadSpawnBiome(Holder<Biome> biome) {
+        return SwampHabitatSpawnRules.isSwampOrCaveBiome(biome);
+    }
+
+    private static boolean isShallowWaterHabitatSpawn(EntityType<LilytadEntity> entityType, LevelAccessor level, BlockPos pos) {
+        return SwampHabitatSpawnRules.isOneDeepStillWaterSpawn(entityType, level, pos);
+    }
+
+    private static boolean isSurfaceGroundSpawn(EntityType<LilytadEntity> entityType, LevelAccessor level, BlockPos pos) {
+        return SwampHabitatSpawnRules.isSurfaceGroundSpawn(entityType, level, pos, SURFACE_SPAWN_TOLERANCE);
     }
 
     @Override

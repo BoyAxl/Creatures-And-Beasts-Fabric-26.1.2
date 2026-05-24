@@ -1,6 +1,8 @@
 package com.cgessinger.creaturesandbeasts;
 
 import com.cgessinger.creaturesandbeasts.config.CNBConfig;
+import com.cgessinger.creaturesandbeasts.entities.LilytadEntity;
+import com.cgessinger.creaturesandbeasts.entities.LizardEntity;
 import com.cgessinger.creaturesandbeasts.entities.MinipadEntity;
 import com.cgessinger.creaturesandbeasts.events.CNBEvents;
 import com.cgessinger.creaturesandbeasts.init.*;
@@ -10,22 +12,26 @@ import com.cgessinger.creaturesandbeasts.util.CNBRegistrySupplier;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.BiomeTags;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.block.Block;
 import org.infernalstudios.config.Config;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class CreaturesAndBeasts {
     private static CreaturesAndBeasts instance;
@@ -113,12 +119,7 @@ public class CreaturesAndBeasts {
             new MobSpawnSettings.MobSpawnCost(400, 1)
         );
 
-        spawns.addSpawn(
-            biome -> biome.is(Biomes.SWAMP),
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.LILYTAD.get(), 45, 1, 1),
-            null
-        );
+        this.addLilytadSpawns(spawns);
 
         spawns.addSpawn(
             biome -> biome.is(BiomeTags.IS_RIVER),
@@ -127,24 +128,7 @@ public class CreaturesAndBeasts {
             null
         );
 
-        spawns.addSpawn(
-            biome -> biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT),
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.LIZARD.get(), 15, 1, 4),
-            null
-        );
-        spawns.addSpawn(
-            biome -> biome.is(BiomeTags.IS_JUNGLE),
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.LIZARD.get(), 100, 1, 4),
-            null
-        );
-        spawns.addSpawn(
-            biome -> biome.is(Biomes.MUSHROOM_FIELDS), // TODO: use common tag
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.LIZARD.get(), 10, 1, 4),
-            null
-        );
+        this.addLizardSpawns(spawns);
 
         this.addMinipadSpawns(spawns);
 
@@ -205,17 +189,51 @@ public class CreaturesAndBeasts {
         );
     }
 
-    private void addMinipadSpawns(BiomeSpawns spawns) {
-        spawns.addSpawn(
-            MinipadEntity::isMinipadSpawnBiome,
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.MINIPAD.get(), 20, 3, 5),
-            null
+    private void addLilytadSpawns(BiomeSpawns spawns) {
+        this.addCreatureAndWaterAmbientSpawns(
+            spawns,
+            LilytadEntity::isLilytadSpawnBiome,
+            CNBEntityTypes.LILYTAD.get(),
+            20,
+            35,
+            1,
+            3
         );
-        spawns.addSpawn(
+    }
+
+    private void addMinipadSpawns(BiomeSpawns spawns) {
+        this.addCreatureAndWaterAmbientSpawns(
+            spawns,
             MinipadEntity::isMinipadSpawnBiome,
-            MobCategory.WATER_AMBIENT,
-            BiomeSpawns.spawn(CNBEntityTypes.MINIPAD.get(), 45, 3, 5),
+            CNBEntityTypes.MINIPAD.get(),
+            20,
+            45,
+            3,
+            5
+        );
+    }
+
+    private void addLizardSpawns(BiomeSpawns spawns) {
+        EntityType<LizardEntity> lizard = CNBEntityTypes.LIZARD.get();
+        this.addCreatureSpawn(spawns, biome -> biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT), lizard, 15, 1, 4);
+        this.addCreatureSpawn(spawns, biome -> biome.is(BiomeTags.IS_JUNGLE), lizard, 100, 1, 4);
+        this.addCreatureSpawn(spawns, biome -> biome.is(Biomes.MUSHROOM_FIELDS), lizard, 10, 1, 4);
+    }
+
+    private void addCreatureAndWaterAmbientSpawns(BiomeSpawns spawns, Predicate<Holder<Biome>> selector, EntityType<?> entityType, int creatureWeight, int waterAmbientWeight, int minCount, int maxCount) {
+        this.addSpawn(spawns, selector, MobCategory.CREATURE, entityType, creatureWeight, minCount, maxCount);
+        this.addSpawn(spawns, selector, MobCategory.WATER_AMBIENT, entityType, waterAmbientWeight, minCount, maxCount);
+    }
+
+    private void addCreatureSpawn(BiomeSpawns spawns, Predicate<Holder<Biome>> selector, EntityType<?> entityType, int weight, int minCount, int maxCount) {
+        this.addSpawn(spawns, selector, MobCategory.CREATURE, entityType, weight, minCount, maxCount);
+    }
+
+    private void addSpawn(BiomeSpawns spawns, Predicate<Holder<Biome>> selector, MobCategory category, EntityType<?> entityType, int weight, int minCount, int maxCount) {
+        spawns.addSpawn(
+            selector,
+            category,
+            BiomeSpawns.spawn(entityType, weight, minCount, maxCount),
             null
         );
     }
