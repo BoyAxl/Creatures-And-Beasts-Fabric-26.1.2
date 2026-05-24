@@ -5,6 +5,7 @@ import com.cgessinger.creaturesandbeasts.entities.CactemEntity;
 import com.cgessinger.creaturesandbeasts.entities.LilytadEntity;
 import com.cgessinger.creaturesandbeasts.entities.LizardEntity;
 import com.cgessinger.creaturesandbeasts.entities.MinipadEntity;
+import com.cgessinger.creaturesandbeasts.entities.YetiEntity;
 import com.cgessinger.creaturesandbeasts.events.CNBEvents;
 import com.cgessinger.creaturesandbeasts.init.*;
 import com.cgessinger.creaturesandbeasts.util.BiomeSpawns;
@@ -171,18 +172,7 @@ public class CreaturesAndBeasts {
             null
         );
 
-        spawns.addSpawn(
-            biome -> biome.is(Biomes.SNOWY_PLAINS) || biome.is(Biomes.ICE_SPIKES) || biome.is(Biomes.SNOWY_TAIGA) || biome.is(Biomes.SNOWY_SLOPES),
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.YETI.get(), 1, 2, 3),
-            null
-        );
-        spawns.addSpawn(
-            biome -> biome.is(Biomes.FROZEN_PEAKS),
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.YETI.get(), 2, 2, 3),
-            null
-        );
+        this.addYetiSpawns(spawns);
     }
 
     private void addLilytadSpawns(BiomeSpawns spawns) {
@@ -219,6 +209,22 @@ public class CreaturesAndBeasts {
         this.addCreatureSpawn(spawns, biome -> biome.is(BiomeTags.IS_BADLANDS) || biome.is(Biomes.DESERT), lizard, 12, 1, 4);
         this.addCreatureSpawn(spawns, biome -> biome.is(BiomeTags.IS_JUNGLE), lizard, 45, 1, 4);
         this.addCreatureSpawn(spawns, biome -> biome.is(Biomes.MUSHROOM_FIELDS), lizard, 10, 1, 4);
+    }
+
+    private void addYetiSpawns(BiomeSpawns spawns) {
+        EntityType<YetiEntity> yeti = CNBEntityTypes.YETI.get();
+        this.addCreatureSpawn(
+            spawns,
+            biome -> biome.is(Biomes.SNOWY_PLAINS)
+                    || biome.is(Biomes.ICE_SPIKES)
+                    || biome.is(Biomes.SNOWY_TAIGA)
+                    || biome.is(Biomes.SNOWY_SLOPES),
+            yeti,
+            1,
+            2,
+            3
+        );
+        this.addCreatureSpawn(spawns, biome -> biome.is(Biomes.FROZEN_PEAKS), yeti, 2, 2, 3);
     }
 
     private void addCreatureAndWaterAmbientSpawns(BiomeSpawns spawns, Predicate<Holder<Biome>> selector, EntityType<?> entityType, int creatureWeight, int waterAmbientWeight, int minCount, int maxCount) {

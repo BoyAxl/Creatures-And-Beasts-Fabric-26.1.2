@@ -53,6 +53,7 @@ import com.geckolib.cache.animation.keyframeevent.SoundKeyframeData;
 import com.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
+
 public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, NeutralMob {
     public static final EntityDataAccessor<Boolean> ATTACKING = SynchedEntityData.defineId(YetiEntity.class, EntityDataSerializers.BOOLEAN);
     public static final EntityDataAccessor<Boolean> EATING = SynchedEntityData.defineId(YetiEntity.class, EntityDataSerializers.BOOLEAN);
@@ -340,7 +341,7 @@ public class YetiEntity extends TamableAnimal implements GeoEntity, Enemy, Neutr
 
     @Override
     public boolean removeWhenFarAway(double distanceToClosestPlayer) {
-        return !this.isTame() && !this.hasCustomName();
+        return false;
     }
 
     private void performAttack() {
