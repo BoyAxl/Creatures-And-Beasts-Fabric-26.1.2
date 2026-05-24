@@ -22,6 +22,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.util.TimeUtil;
+import net.minecraft.util.valueproviders.UniformInt;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -36,6 +38,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.*;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
+import net.minecraft.world.entity.ai.goal.target.ResetUniversalAngerTargetGoal;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.ai.util.DefaultRandomPos;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -69,7 +72,7 @@ import com.geckolib.util.GeckoLibUtil;
 import java.util.EnumSet;
 import java.util.List;
 
-public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEntity {
+public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEntity, NeutralMob {
     private static final EntityDataAccessor<Boolean> ELDER = SynchedEntityData.defineId(CactemEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> ATTACKING = SynchedEntityData.defineId(CactemEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> SPEAR_SHOWN = SynchedEntityData.defineId(CactemEntity.class, EntityDataSerializers.BOOLEAN);
@@ -93,6 +96,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     private static final float WALK_ANIMATION_MOVING_SPEED = 0.075F;
     private static final float BABY_HEALTH = 20.0F;
     private static final int MAX_SPAWN_CLUSTER_SIZE = 13;
+    private static final UniformInt PERSISTENT_ANGER_TIME = TimeUtil.rangeOfSeconds(60, 120);
 
     // Elder Goals
     private final RandomStrollGoal elderStrollGoal = new RandomStrollGoal(this, 0.65D);
@@ -111,6 +115,10 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     private int elderTransformationTicks = 0;
     private int throwAnimationFinishTicks = 0;
     private int peacefulWarriorStationaryAnimationStartTick = Integer.MIN_VALUE;
+
+    private long persistentAngerEndTime;
+    @Nullable
+    private EntityReference<LivingEntity> persistentAngerTarget;
 
     private boolean shouldUpdateGoals = false;
 
@@ -155,6 +163,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         super.readAdditionalSaveData(input);
 
         this.setElder(input.getBooleanOr("IsElder", false));
+        this.readPersistentAngerSaveData(this.level(), input);
         if (!this.isElder() && input.getIntOr("Age", -24000) >= 0) {
             this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.CACTEM_SPEAR.get()));
         }
@@ -166,6 +175,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     public void addAdditionalSaveData(ValueOutput output) {
         super.addAdditionalSaveData(output);
         output.putBoolean("IsElder", this.entityData.get(ELDER));
+        this.addPersistentAngerSaveData(output);
     }
 
     @Override
@@ -174,6 +184,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         this.goalSelector.addGoal(3, new RandomLookAroundGoal(this));
         this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 8.0F));
         this.targetSelector.addGoal(0, new HurtByTargetGoal(this, CactemEntity.class).setAlertOthers());
+        this.targetSelector.addGoal(1, new ResetUniversalAngerTargetGoal<>(this, true));
     }
 
     private void reassessGoals() {
@@ -207,14 +218,16 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             this.shouldUpdateGoals = false;
         }
 
-        if (!this.level().isClientSide()) {
+        if (this.level() instanceof ServerLevel serverLevel) {
             this.clearInvalidCombatTarget();
+            this.reacquireRememberedCombatTarget(serverLevel);
             this.shareWarriorCombatTarget();
         }
         
         super.tick();
 
-        if (!this.level().isClientSide()) {
+        if (this.level() instanceof ServerLevel serverLevel) {
+            this.updatePersistentAnger(serverLevel, true);
             this.clearInvalidCombatTarget();
             this.clearStaleWarriorCombatState();
         }
@@ -225,7 +238,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         LivingEntity previousTarget = this.getTarget();
 
         if (target != null && !this.canKeepCactemCombatTarget(target)) {
-            this.forgetCombatTarget();
+            this.clearCombatTarget();
             return;
         }
 
@@ -264,6 +277,32 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     }
 
     @Override
+    public long getPersistentAngerEndTime() {
+        return this.persistentAngerEndTime;
+    }
+
+    @Override
+    public void setPersistentAngerEndTime(long angerEndTime) {
+        this.persistentAngerEndTime = angerEndTime;
+    }
+
+    @Nullable
+    @Override
+    public EntityReference<LivingEntity> getPersistentAngerTarget() {
+        return this.persistentAngerTarget;
+    }
+
+    @Override
+    public void setPersistentAngerTarget(@Nullable EntityReference<LivingEntity> target) {
+        this.persistentAngerTarget = target;
+    }
+
+    @Override
+    public void startPersistentAngerTimer() {
+        this.setTimeToRemainAngry(PERSISTENT_ANGER_TIME.sample(this.random));
+    }
+
+    @Override
     protected int getBaseExperienceReward(ServerLevel level) {
         return 3 + this.getRandom().nextInt(4);
     }
@@ -282,6 +321,16 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     @Override
     public boolean removeWhenFarAway(double distanceToClosestPlayer) {
         return false;
+    }
+
+    @Override
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+        boolean hurt = super.hurtServer(level, source, amount);
+        if (hurt && source.getEntity() instanceof LivingEntity attacker && this.canRememberCombatTarget(attacker)) {
+            this.rememberCombatTarget(attacker);
+        }
+
+        return hurt;
     }
 
     @Override
@@ -368,6 +417,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
                 continue;
             }
 
+            nearbyCactem.rememberCombatTarget(target);
             nearbyCactem.setTarget(target);
         }
     }
@@ -378,7 +428,38 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             return;
         }
 
-        this.forgetCombatTarget();
+        this.clearCombatTarget();
+    }
+
+    private void reacquireRememberedCombatTarget(ServerLevel level) {
+        if (!this.canFightAsWarrior() || this.getTarget() != null || !this.isAngry()) {
+            return;
+        }
+
+        EntityReference<LivingEntity> targetReference = this.persistentAngerTarget;
+        if (targetReference == null) {
+            return;
+        }
+
+        LivingEntity rememberedTarget = EntityReference.getLivingEntity(targetReference, level);
+        if (this.canKeepCactemCombatTarget(rememberedTarget) && this.getSensing().hasLineOfSight(rememberedTarget)) {
+            this.setTarget(rememberedTarget);
+        }
+    }
+
+    private boolean canRememberCombatTarget(LivingEntity target) {
+        return this.canFightAsWarrior()
+                && isValidCactemCombatTarget(target)
+                && this.canAttack(target);
+    }
+
+    private void rememberCombatTarget(LivingEntity target) {
+        if (!this.canRememberCombatTarget(target)) {
+            return;
+        }
+
+        this.setPersistentAngerTarget(EntityReference.of(target));
+        this.startPersistentAngerTimer();
     }
 
     private void shareWarriorCombatTarget() {
@@ -437,9 +518,8 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         this.resetWarriorCombatState();
     }
 
-    private void forgetCombatTarget() {
+    private void clearCombatTarget() {
         super.setTarget(null);
-        this.setLastHurtByMob(null);
         this.resetWarriorCombatState();
     }
 
@@ -1439,7 +1519,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             LivingEntity targetEntity = this.cactem.getTarget();
             if (targetEntity != null) {
                 if (!this.cactem.canKeepCactemCombatTarget(targetEntity)) {
-                    this.cactem.forgetCombatTarget();
+                    this.cactem.clearCombatTarget();
                     return;
                 }
 
