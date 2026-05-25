@@ -57,6 +57,7 @@ import static com.cgessinger.creaturesandbeasts.init.CNBTags.Items.END_WHALE_FOO
 
 public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEntity {
     private static final EntityDataAccessor<Boolean> SADDLED = SynchedEntityData.defineId(EndWhaleEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final double RIDING_HEIGHT_SCALE = 0.55D;
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
 
@@ -128,13 +129,26 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
     public void removeSaddle() {
         this.entityData.set(SADDLED, false);
         if (this.level() instanceof ServerLevel serverLevel) {
-            this.spawnAtLocation(serverLevel, Items.SADDLE);
+            ItemStack equippedSaddle = this.getItemBySlot(EquipmentSlot.SADDLE);
+            if (equippedSaddle.isEmpty()) {
+                this.spawnAtLocation(serverLevel, Items.SADDLE);
+            } else {
+                ItemStack saddleToDrop = equippedSaddle.copy();
+                this.setItemSlot(EquipmentSlot.SADDLE, ItemStack.EMPTY);
+                this.spawnAtLocation(serverLevel, saddleToDrop);
+            }
         }
         this.playSound(SoundEvents.HORSE_SADDLE.value(), 0.8F, 1.0F);
     }
 
+    @Override
     public boolean isSaddled() {
-        return this.entityData.get(SADDLED);
+        return this.entityData.get(SADDLED) || this.hasItemInSlot(EquipmentSlot.SADDLE);
+    }
+
+    @Override
+    public boolean canUseSlot(EquipmentSlot slot) {
+        return super.canUseSlot(slot) && (slot != EquipmentSlot.SADDLE || this.isSaddleable());
     }
 
     private void mountWhale(Player player) {
@@ -169,7 +183,7 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
     }
 
     private double getWhaleRidingOffset() {
-        return (double)this.getDimensions(this.getPose()).height() * 0.70D;
+        return (double)this.getDimensions(this.getPose()).height() * RIDING_HEIGHT_SCALE;
     }
 
     private float getWhaleRoll(Entity rider) {
