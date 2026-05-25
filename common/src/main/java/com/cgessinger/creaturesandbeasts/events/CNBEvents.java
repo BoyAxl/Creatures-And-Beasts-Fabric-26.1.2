@@ -2,6 +2,7 @@ package com.cgessinger.creaturesandbeasts.events;
 
 import com.cgessinger.creaturesandbeasts.entities.*;
 import com.cgessinger.creaturesandbeasts.init.CNBEntityTypes;
+import com.cgessinger.creaturesandbeasts.items.CinderSwordItem;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.core.Holder;
 import net.minecraft.world.damagesource.DamageSource;
@@ -51,6 +52,11 @@ public class CNBEvents {
 
     public int onLootingCalculate(DamageSource damageSource) {
         return this.cactemSpearEvents.onLootingCalculate(damageSource);
+    }
+
+    public boolean onAllowLivingDeath(LivingEntity entity, DamageSource damageSource, float damageAmount) {
+        CinderSwordItem.igniteKilledTarget(entity, damageSource);
+        return true;
     }
 
     public void onLivingTick(LivingEntity entity) {

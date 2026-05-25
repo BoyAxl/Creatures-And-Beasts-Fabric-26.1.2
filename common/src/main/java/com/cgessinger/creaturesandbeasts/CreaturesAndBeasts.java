@@ -11,6 +11,7 @@ import com.cgessinger.creaturesandbeasts.init.*;
 import com.cgessinger.creaturesandbeasts.util.BiomeSpawns;
 import com.cgessinger.creaturesandbeasts.util.CNBDeferredRegister;
 import com.cgessinger.creaturesandbeasts.util.CNBRegistrySupplier;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
@@ -88,6 +89,7 @@ public class CreaturesAndBeasts {
         this.events.createEntityAttributes();
 
         ServerTickEvents.END_SERVER_TICK.register(server -> server.getPlayerList().getPlayers().forEach(this.events::onLivingTick));
+        ServerLivingEntityEvents.ALLOW_DEATH.register(this.events::onAllowLivingDeath);
         UseBlockCallback.EVENT.register((player, level, hand, hitResult) -> this.events.onBackpackSporelingUseBlock(player, hitResult));
         UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> this.events.onBackpackSporelingUseEntity(player, entity));
     }
@@ -185,7 +187,7 @@ public class CreaturesAndBeasts {
 
     private void addCactemSpawns(BiomeSpawns spawns) {
         EntityType<CactemEntity> cactem = CNBEntityTypes.CACTEM.get();
-        this.addSpawn(spawns, CactemEntity::isCactemSpawnBiome, MobCategory.CREATURE, cactem, 8, 6, 13);
+        this.addSpawn(spawns, CactemEntity::isCactemSpawnBiome, MobCategory.CREATURE, cactem, 9, 6, 13);
     }
 
     private void addEndWhaleSpawns(BiomeSpawns spawns) {

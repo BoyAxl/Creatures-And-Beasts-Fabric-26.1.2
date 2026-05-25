@@ -88,6 +88,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     private static final int ELDER_HEAL_EFFECT_DURATION = 100;
     private static final int ELDER_HEAL_EFFECT_AMPLIFIER = 1;
     private static final int ELDER_TRANSFORMATION_TICKS = 40;
+    private static final double ELDER_CHANCE = 0.25D;
     private static final int ELDER_TRANSFORMATION_EFFECT_TICK = 20;
     private static final double CACTEM_ALERT_VERTICAL_RANGE = 10.0D;
     private static final int CACTEM_TARGET_SHARE_INTERVAL = 60;
@@ -165,7 +166,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         this.setElder(input.getBooleanOr("IsElder", false));
         this.readPersistentAngerSaveData(this.level(), input);
         if (!this.isElder() && input.getIntOr("Age", -24000) >= 0) {
-            this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.CACTEM_SPEAR.get()));
+            this.equipCactemSpear();
         }
 
         this.reassessGoals();
@@ -255,7 +256,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         super.aiStep();
 
         if (this.isElder() && !this.getItemInHand(this.getUsedItemHand()).is(CNBItems.HEAL_SPELL_BOOK_1.get())) {
-            this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.HEAL_SPELL_BOOK_1.get()));
+            this.equipHealSpellBook();
         }
 
         if (this.isHealing()) {
@@ -346,14 +347,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
             spawnGroup = new AgeableMobGroupData(0.5F);
         }
 
-        if (!this.isBaby()) {
-            if (elderChance < 0.25) {
-                this.setElder(true);
-                this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.HEAL_SPELL_BOOK_1.get()));
-            } else {
-                this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.CACTEM_SPEAR.get()));
-            }
-        }
+        this.equipAdultItem(elderChance);
 
         this.reassessGoals();
 
@@ -599,14 +593,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
 
         double elderChance = this.random.nextDouble();
 
-        if (!this.isBaby()) {
-            if (elderChance < 0.25) {
-                this.setElder(true);
-                this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.HEAL_SPELL_BOOK_1.get()));
-            } else {
-                this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.CACTEM_SPEAR.get()));
-            }
-        }
+        this.equipAdultItem(elderChance);
 
         float percentHealth = this.getHealth() / BABY_HEALTH;
         this.getAttribute(Attributes.MAX_HEALTH).removeModifier(HEALTH_REDUCTION_ID);
@@ -621,6 +608,34 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
     @Override
     public AgeableMob getBreedOffspring(ServerLevel level, AgeableMob entity) {
         return CNBEntityTypes.CACTEM.get().create(level, EntitySpawnReason.BREEDING);
+    }
+
+    private void equipAdultItem(double elderChance) {
+        if (this.isBaby()) {
+            return;
+        }
+
+        if (elderChance < ELDER_CHANCE) {
+            this.setElder(true);
+            this.equipHealSpellBook();
+            return;
+        }
+
+        this.equipCactemSpear();
+    }
+
+    private void equipCactemSpear() {
+        this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.CACTEM_SPEAR.get()));
+        this.setDropChance(this.getUsedEquipmentSlot(), 0.0F);
+    }
+
+    private void equipHealSpellBook() {
+        this.setItemInHand(this.getUsedItemHand(), new ItemStack(CNBItems.HEAL_SPELL_BOOK_1.get()));
+        this.setDropChance(this.getUsedEquipmentSlot(), DropChances.DEFAULT_EQUIPMENT_DROP_CHANCE);
+    }
+
+    private EquipmentSlot getUsedEquipmentSlot() {
+        return this.getUsedItemHand() == InteractionHand.MAIN_HAND ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
     }
 
     @Override
@@ -1605,7 +1620,7 @@ public class CactemEntity extends AgeableMob implements RangedAttackMob, GeoEnti
         @Override
         public void start() {
             this.cactem.setElder(true);
-            this.cactem.setItemInHand(this.cactem.getUsedItemHand(), new ItemStack(CNBItems.HEAL_SPELL_BOOK_1.get()));
+            this.cactem.equipHealSpellBook();
             this.cactem.startElderTransformationEffect();
             this.cactem.setShouldUpdateGoals(true);
         }

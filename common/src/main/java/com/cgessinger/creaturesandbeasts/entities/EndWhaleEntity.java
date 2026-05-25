@@ -407,13 +407,19 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
     @Override
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, EntitySpawnReason reason, @Nullable SpawnGroupData spawnGroupData) {
         SpawnGroupData spawnGroup = super.finalizeSpawn(level, difficulty, reason, spawnGroupData);
-        BlockPos surface = findIslandSurface(level, this.blockPosition());
-        if (surface != null) {
-            BlockPos spawnPos = this.findSurfaceSpawnPos(level, surface);
-            this.snapTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D, this.getYRot(), this.getXRot());
+        if (shouldSnapToIslandSpawn(reason)) {
+            BlockPos surface = findIslandSurface(level, this.blockPosition());
+            if (surface != null) {
+                BlockPos spawnPos = this.findSurfaceSpawnPos(level, surface);
+                this.snapTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D, this.getYRot(), this.getXRot());
+            }
         }
 
         return spawnGroup;
+    }
+
+    private static boolean shouldSnapToIslandSpawn(EntitySpawnReason reason) {
+        return reason == EntitySpawnReason.NATURAL || reason == EntitySpawnReason.CHUNK_GENERATION;
     }
 
     @Nullable

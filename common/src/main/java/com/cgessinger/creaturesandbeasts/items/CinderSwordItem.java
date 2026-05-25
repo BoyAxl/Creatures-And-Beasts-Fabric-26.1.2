@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -40,11 +41,25 @@ public class CinderSwordItem extends Item {
 
     @Override
     public void hurtEnemy(ItemStack stack, LivingEntity targetEntity, LivingEntity attackingEntity) {
+        this.igniteTarget(targetEntity);
+        super.hurtEnemy(stack, targetEntity, attackingEntity);
+    }
+
+    public static void igniteKilledTarget(LivingEntity targetEntity, DamageSource damageSource) {
+        if (!damageSource.isDirect()) {
+            return;
+        }
+
+        ItemStack weapon = damageSource.getWeaponItem();
+        if (weapon != null && weapon.getItem() instanceof CinderSwordItem cinderSword) {
+            cinderSword.igniteTarget(targetEntity);
+        }
+    }
+
+    private void igniteTarget(LivingEntity targetEntity) {
         if (this.imbueLevel > 0) {
             targetEntity.igniteForSeconds(FIRE_SECONDS_PER_IMBUE_LEVEL * this.imbueLevel);
         }
-
-        super.hurtEnemy(stack, targetEntity, attackingEntity);
     }
 
     @Override
