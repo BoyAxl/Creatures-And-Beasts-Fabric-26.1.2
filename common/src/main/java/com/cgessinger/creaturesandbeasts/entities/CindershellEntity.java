@@ -236,7 +236,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
             if (!this.items.get(0).isEmpty()) {
                 RecipeHolder<SmeltingRecipe> recipe = serverLevel.recipeAccess().getRecipeFor(RecipeType.SMELTING, new SingleRecipeInput(this.items.get(0)), serverLevel).orElse(null);
 
-                if (this.canBurn(recipe, this.inventory.getItems(), 64)) {
+                if (this.canBurn(recipe, this.items, 64)) {
                     if (this.random.nextDouble() < 0.1D) {
                         this.playSound(SoundEvents.FURNACE_FIRE_CRACKLE, 1.0F, 1.0F);
                     }
@@ -343,7 +343,7 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
             return this.level().isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
         } else if (this.hasFurnace()) {
             if (!this.level().isClientSide()) {
-                player.openMenu(this);
+                player.openMenu(new SimpleMenuProvider(this::createMenu, Component.translatable("cnb.container.cinder_furnace")));
             }
 
             return this.level().isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
@@ -780,6 +780,8 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
     }
 
     static class CindershellBreedGoal extends BreedGoal {
+        private static final int MIN_OFFSPRING = 2;
+        private static final int MAX_OFFSPRING = 5;
 
         public CindershellBreedGoal(Animal cindershell, double speedModifier) {
             super(cindershell, speedModifier);
@@ -787,8 +789,8 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
 
         @Override
         protected void breed() {
-            int range = this.animal.getRandom().nextInt(4) + 3;
-            for (int i = 0; i <= range; i++) {
+            int offspringCount = this.animal.getRandom().nextInt(MAX_OFFSPRING - MIN_OFFSPRING + 1) + MIN_OFFSPRING;
+            for (int i = 0; i < offspringCount; i++) {
                 super.breed();
             }
         }

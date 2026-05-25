@@ -36,6 +36,10 @@ public class CindershellRenderer extends GeoEntityRenderer<CindershellEntity, Li
     }
 
     private static class CindershellHeldItemLayer extends BlockAndItemGeoLayer<CindershellEntity, Void, LivingEntityRenderState> {
+        private static final double HELD_ITEM_Y_OFFSET = 0.62D;
+        private static final double HELD_ITEM_Z_OFFSET = -1.52D;
+        private static final float HELD_ITEM_X_ROT = 90.0F;
+
         public CindershellHeldItemLayer(EntityRendererProvider.Context context, CindershellRenderer renderer) {
             super(context, renderer);
         }
@@ -64,8 +68,9 @@ public class CindershellRenderer extends GeoEntityRenderer<CindershellEntity, Li
         @Override
         protected void submitItemStackRender(PoseStack poseStack, GeoBone bone, ItemStackRenderState itemRenderState, ItemDisplayContext displayContext, LivingEntityRenderState renderState, SubmitNodeCollector submitNodeCollector, int packedLight) {
             poseStack.pushPose();
-            poseStack.translate(0, 0.62D, -1.52D);
-            poseStack.mulPose(Axis.XP.rotationDegrees(90.0F));
+            bone.translateAwayFromPivotPoint(poseStack);
+            poseStack.translate(0, HELD_ITEM_Y_OFFSET, HELD_ITEM_Z_OFFSET);
+            poseStack.mulPose(Axis.XP.rotationDegrees(HELD_ITEM_X_ROT));
             super.submitItemStackRender(poseStack, bone, itemRenderState, displayContext, renderState, submitNodeCollector, packedLight);
             poseStack.popPose();
         }
