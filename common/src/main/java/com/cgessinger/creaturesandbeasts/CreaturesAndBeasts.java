@@ -109,12 +109,7 @@ public class CreaturesAndBeasts {
             null
         );
 
-        spawns.addSpawn(
-            biome -> biome.is(BiomeTags.IS_END),
-            MobCategory.CREATURE,
-            BiomeSpawns.spawn(CNBEntityTypes.END_WHALE.get(), 1, 1, 1),
-            new MobSpawnSettings.MobSpawnCost(400, 1)
-        );
+        this.addEndWhaleSpawns(spawns);
 
         this.addLilytadSpawns(spawns);
 
@@ -190,6 +185,18 @@ public class CreaturesAndBeasts {
     private void addCactemSpawns(BiomeSpawns spawns) {
         EntityType<CactemEntity> cactem = CNBEntityTypes.CACTEM.get();
         this.addSpawn(spawns, CactemEntity::isCactemSpawnBiome, MobCategory.CREATURE, cactem, 8, 6, 13);
+    }
+
+    private void addEndWhaleSpawns(BiomeSpawns spawns) {
+        spawns.addSpawn(
+            biome -> biome.is(Biomes.END_HIGHLANDS)
+                    || biome.is(Biomes.END_MIDLANDS)
+                    || biome.is(Biomes.SMALL_END_ISLANDS)
+                    || biome.is(Biomes.END_BARRENS),
+            MobCategory.CREATURE,
+            BiomeSpawns.spawn(CNBEntityTypes.END_WHALE.get(), 1, 1, 1),
+            new MobSpawnSettings.MobSpawnCost(400, 1)
+        );
     }
 
     private void addMinipadSpawns(BiomeSpawns spawns) {

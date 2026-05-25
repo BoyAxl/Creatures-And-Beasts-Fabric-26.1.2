@@ -3,6 +3,7 @@ package com.cgessinger.creaturesandbeasts.entities;
 import com.cgessinger.creaturesandbeasts.CreaturesAndBeasts;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -13,6 +14,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
@@ -36,7 +38,9 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
@@ -52,6 +56,7 @@ import com.geckolib.animation.object.PlayState;
 import com.geckolib.util.GeckoLibUtil;
 
 import java.util.EnumSet;
+import java.util.List;
 
 import static com.cgessinger.creaturesandbeasts.init.CNBTags.Items.END_WHALE_FOOD;
 
@@ -67,9 +72,26 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
     private static final float FREE_FLIGHT_MAX_PITCH = 35.0F;
     private static final double TEMPT_STOP_DISTANCE = 2.5D;
     private static final double TEMPT_STOP_DISTANCE_SQR = TEMPT_STOP_DISTANCE * TEMPT_STOP_DISTANCE;
-    private static final double TEMPT_SEARCH_RANGE = 100.0D;
+    private static final double TEMPT_SEARCH_RANGE = 50.0D;
     private static final double TEMPT_SEARCH_RANGE_SQR = TEMPT_SEARCH_RANGE * TEMPT_SEARCH_RANGE;
     private static final double TEMPT_VERTICAL_OFFSET = 1.0D;
+    private static final int ISLAND_SURFACE_TARGET_CHANCE = 5;
+    private static final int ISLAND_SURFACE_SEARCH_ATTEMPTS = 12;
+    private static final int ISLAND_SURFACE_HORIZONTAL_RADIUS = 32;
+    private static final int ISLAND_SURFACE_MIN_HEIGHT_ABOVE = 8;
+    private static final int ISLAND_SURFACE_RANDOM_HEIGHT = 12;
+    private static final int SURFACE_SPAWN_MIN_HEIGHT_ABOVE = 20;
+    private static final int SURFACE_SPAWN_MAX_HEIGHT_ABOVE = 50;
+    private static final int SURFACE_SPAWN_RANDOM_HEIGHT = SURFACE_SPAWN_MAX_HEIGHT_ABOVE - SURFACE_SPAWN_MIN_HEIGHT_ABOVE;
+    private static final int MAX_SPAWN_CLUSTER_SIZE = 1;
+    private static final int HERD_CHECK_INTERVAL = 60;
+    private static final double HERD_SEARCH_RANGE = 40.0D;
+    private static final double HERD_SEARCH_RANGE_SQR = HERD_SEARCH_RANGE * HERD_SEARCH_RANGE;
+    private static final double HERD_FOLLOW_DISTANCE = 30.0D;
+    private static final double HERD_FOLLOW_DISTANCE_SQR = HERD_FOLLOW_DISTANCE * HERD_FOLLOW_DISTANCE;
+    private static final double HERD_STOP_DISTANCE = 22.0D;
+    private static final double HERD_STOP_DISTANCE_SQR = HERD_STOP_DISTANCE * HERD_STOP_DISTANCE;
+    private static final double HERD_SPEED_MODIFIER = 0.9D;
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
 
@@ -91,7 +113,8 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
 
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new EndWhaleTemptGoal(this, 1.25D, Ingredient.of(this.registryAccess().lookupOrThrow(Registries.ITEM).getOrThrow(END_WHALE_FOOD))));
-        this.goalSelector.addGoal(1, new EndWhaleWanderGoal(this));
+        this.goalSelector.addGoal(1, new EndWhaleFollowHerdGoal(this));
+        this.goalSelector.addGoal(2, new EndWhaleWanderGoal(this));
     }
 
     @Override
@@ -372,8 +395,39 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
         return 12 + this.getRandom().nextInt(5);
     }
 
+    @Override
+    public int getMaxSpawnClusterSize() {
+        return MAX_SPAWN_CLUSTER_SIZE;
+    }
+
     public static boolean checkEndWhaleSpawnRules(EntityType<EndWhaleEntity> animal, LevelAccessor worldIn, EntitySpawnReason reason, BlockPos pos, RandomSource randomIn) {
-        return true;
+        return findIslandSurface(worldIn, pos) != null;
+    }
+
+    @Override
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, EntitySpawnReason reason, @Nullable SpawnGroupData spawnGroupData) {
+        SpawnGroupData spawnGroup = super.finalizeSpawn(level, difficulty, reason, spawnGroupData);
+        BlockPos surface = findIslandSurface(level, this.blockPosition());
+        if (surface != null) {
+            BlockPos spawnPos = this.findSurfaceSpawnPos(level, surface);
+            this.snapTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D, this.getYRot(), this.getXRot());
+        }
+
+        return spawnGroup;
+    }
+
+    @Nullable
+    private static BlockPos findIslandSurface(LevelReader level, BlockPos pos) {
+        BlockPos surface = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos);
+        BlockPos ground = surface.below();
+        BlockState groundState = level.getBlockState(ground);
+        return groundState.isFaceSturdy(level, ground, Direction.UP) ? surface : null;
+    }
+
+    private BlockPos findSurfaceSpawnPos(LevelReader level, BlockPos surface) {
+        int heightAboveSurface = SURFACE_SPAWN_MIN_HEIGHT_ABOVE + this.random.nextInt(SURFACE_SPAWN_RANDOM_HEIGHT + 1);
+        int y = Mth.clamp(surface.getY() + heightAboveSurface, level.getMinY() + 1, level.getMaxY() - 1);
+        return new BlockPos(surface.getX(), y, surface.getZ());
     }
 
     @Override
@@ -609,6 +663,13 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
 
         @Nullable
         private Vec3 findPos() {
+            if (this.endWhale.random.nextInt(ISLAND_SURFACE_TARGET_CHANCE) == 0) {
+                Vec3 islandSurfacePos = this.findIslandSurfacePos();
+                if (islandSurfacePos != null) {
+                    return islandSurfacePos;
+                }
+            }
+
             Vec3 vec3 = this.endWhale.getViewVector(0.5F);
 
             Vec3 vec32 = HoverRandomPos.getPos(this.endWhale, 20, 20, vec3.x, vec3.z, (float)Math.PI, 50, 15);
@@ -619,6 +680,128 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
             }
 
             return vec32;
+        }
+
+        @Nullable
+        private Vec3 findIslandSurfacePos() {
+            Level level = this.endWhale.level();
+            BlockPos origin = this.endWhale.blockPosition();
+
+            for (int attempt = 0; attempt < ISLAND_SURFACE_SEARCH_ATTEMPTS; ++attempt) {
+                int x = origin.getX() + this.endWhale.random.nextInt(ISLAND_SURFACE_HORIZONTAL_RADIUS * 2 + 1) - ISLAND_SURFACE_HORIZONTAL_RADIUS;
+                int z = origin.getZ() + this.endWhale.random.nextInt(ISLAND_SURFACE_HORIZONTAL_RADIUS * 2 + 1) - ISLAND_SURFACE_HORIZONTAL_RADIUS;
+                BlockPos column = new BlockPos(x, origin.getY(), z);
+                if (!level.hasChunkAt(column)) {
+                    continue;
+                }
+
+                BlockPos surface = EndWhaleEntity.findIslandSurface(level, column);
+                if (surface == null) {
+                    continue;
+                }
+
+                int y = surface.getY() + ISLAND_SURFACE_MIN_HEIGHT_ABOVE + this.endWhale.random.nextInt(ISLAND_SURFACE_RANDOM_HEIGHT + 1);
+                y = Mth.clamp(y, level.getMinY() + 1, level.getMaxY() - 1);
+                Vec3 target = new Vec3(x + 0.5D, y, z + 0.5D);
+                if (this.canFitAt(target)) {
+                    return target;
+                }
+            }
+
+            return null;
+        }
+
+        private boolean canFitAt(Vec3 target) {
+            return this.endWhale.level().noCollision(
+                    this.endWhale,
+                    this.endWhale.getBoundingBox().move(target.x - this.endWhale.getX(), target.y - this.endWhale.getY(), target.z - this.endWhale.getZ())
+            );
+        }
+    }
+
+    static class EndWhaleFollowHerdGoal extends Goal {
+        private final EndWhaleEntity endWhale;
+        @Nullable
+        private EndWhaleEntity herdMate;
+
+        EndWhaleFollowHerdGoal(EndWhaleEntity endWhale) {
+            this.setFlags(EnumSet.of(Goal.Flag.MOVE));
+            this.endWhale = endWhale;
+        }
+
+        @Override
+        public boolean canUse() {
+            if (this.endWhale.isVehicle() || this.endWhale.isLeashed() || this.endWhale.random.nextInt(reducedTickDelay(HERD_CHECK_INTERVAL)) != 0) {
+                return false;
+            }
+
+            this.herdMate = this.findHerdMate();
+            return this.herdMate != null;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return this.herdMate != null
+                    && this.herdMate.isAlive()
+                    && !this.endWhale.isVehicle()
+                    && !this.endWhale.isLeashed()
+                    && this.endWhale.distanceToSqr(this.herdMate) > HERD_STOP_DISTANCE_SQR
+                    && this.endWhale.distanceToSqr(this.herdMate) < HERD_SEARCH_RANGE_SQR;
+        }
+
+        @Override
+        public void start() {
+            this.updateWantedPosition();
+        }
+
+        @Override
+        public void tick() {
+            this.updateWantedPosition();
+        }
+
+        @Override
+        public void stop() {
+            this.endWhale.getMoveControl().setWantedPosition(this.endWhale.getX(), this.endWhale.getY(), this.endWhale.getZ(), 0.0D);
+            this.herdMate = null;
+        }
+
+        @Nullable
+        private EndWhaleEntity findHerdMate() {
+            List<EndWhaleEntity> whales = this.endWhale.level().getEntitiesOfClass(
+                    EndWhaleEntity.class,
+                    this.endWhale.getBoundingBox().inflate(HERD_SEARCH_RANGE),
+                    whale -> whale != this.endWhale && whale.isAlive() && !whale.isVehicle()
+            );
+
+            EndWhaleEntity closest = null;
+            double closestDistance = Double.MAX_VALUE;
+            for (EndWhaleEntity whale : whales) {
+                double distance = this.endWhale.distanceToSqr(whale);
+                if (distance > HERD_FOLLOW_DISTANCE_SQR && distance < closestDistance) {
+                    closest = whale;
+                    closestDistance = distance;
+                }
+            }
+
+            return closest;
+        }
+
+        private void updateWantedPosition() {
+            if (this.herdMate == null) {
+                return;
+            }
+
+            Vec3 target = this.getLooseHerdTarget();
+            this.endWhale.getMoveControl().setWantedPosition(target.x, target.y, target.z, HERD_SPEED_MODIFIER);
+        }
+
+        private Vec3 getLooseHerdTarget() {
+            Vec3 offsetFromMate = this.endWhale.position().subtract(this.herdMate.position());
+            if (offsetFromMate.lengthSqr() < 1.0E-6D) {
+                return this.herdMate.position();
+            }
+
+            return this.herdMate.position().add(offsetFromMate.normalize().scale(HERD_STOP_DISTANCE));
         }
     }
 
