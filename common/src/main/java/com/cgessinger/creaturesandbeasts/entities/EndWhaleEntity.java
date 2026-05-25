@@ -58,6 +58,7 @@ import static com.cgessinger.creaturesandbeasts.init.CNBTags.Items.END_WHALE_FOO
 public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEntity {
     private static final EntityDataAccessor<Boolean> SADDLED = SynchedEntityData.defineId(EndWhaleEntity.class, EntityDataSerializers.BOOLEAN);
     private static final double RIDING_HEIGHT_SCALE = 0.55D;
+    private static final float JUMP_VERTICAL_INPUT = 0.5F;
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
 
@@ -239,6 +240,10 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
 
                 if (Mth.abs(livingentity.getXRot()) > 7.0F) {
                     verticalMovement = Mth.rotLerp(0.01F, this.getXRot(), livingentity.getXRot()) * -forwardMovement/50;
+                }
+
+                if (livingentity.isJumping()) {
+                    verticalMovement = Math.max(verticalMovement, JUMP_VERTICAL_INPUT);
                 }
 
                 //this.flyingSpeed = this.getSpeed() * 0.1F;
