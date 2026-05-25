@@ -20,8 +20,8 @@ import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.control.BodyRotationControl;
-import net.minecraft.world.entity.ai.control.FlyingMoveControl;
 import net.minecraft.world.entity.ai.control.LookControl;
+import net.minecraft.world.entity.ai.control.MoveControl;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.navigation.FlyingPathNavigation;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
@@ -59,13 +59,25 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
     private static final EntityDataAccessor<Boolean> SADDLED = SynchedEntityData.defineId(EndWhaleEntity.class, EntityDataSerializers.BOOLEAN);
     private static final double RIDING_HEIGHT_SCALE = 0.55D;
     private static final float JUMP_VERTICAL_INPUT = 0.5F;
+    private static final double FREE_FLIGHT_SPEED_SCALE = 0.18D;
+    private static final double FREE_FLIGHT_ACCELERATION = 0.08D;
+    private static final double FREE_FLIGHT_ARRIVAL_DISTANCE_SQR = 4.0D;
+    private static final float FREE_FLIGHT_YAW_LERP = 0.04F;
+    private static final float FREE_FLIGHT_PITCH_LERP = 0.04F;
+    private static final float FREE_FLIGHT_MAX_PITCH = 35.0F;
+    private static final double TEMPT_STOP_DISTANCE = 2.5D;
+    private static final double TEMPT_STOP_DISTANCE_SQR = TEMPT_STOP_DISTANCE * TEMPT_STOP_DISTANCE;
+    private static final double TEMPT_SEARCH_RANGE = 100.0D;
+    private static final double TEMPT_SEARCH_RANGE_SQR = TEMPT_SEARCH_RANGE * TEMPT_SEARCH_RANGE;
+    private static final double TEMPT_VERTICAL_OFFSET = 1.0D;
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
 
     public EndWhaleEntity(EntityType<EndWhaleEntity> entityType, Level level) {
         super(entityType, level);
         this.setTame(false, false);
-        this.moveControl = new FlyingMoveControl(this, 2, true);
+        this.setNoGravity(true);
+        this.moveControl = new EndWhaleMoveControl(this);
         this.lookControl = new EndWhaleLookControl(this);
     }
 
@@ -216,6 +228,12 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
     }
 
     @Override
+    public void tick() {
+        super.tick();
+        this.setNoGravity(true);
+    }
+
+    @Override
     public boolean canBreatheUnderwater() {
         return true;
     }
@@ -246,7 +264,6 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
                     verticalMovement = Math.max(verticalMovement, JUMP_VERTICAL_INPUT);
                 }
 
-                //this.flyingSpeed = this.getSpeed() * 0.1F;
                 if (this.isControlledByLocalInstance()) {
                     this.setSpeed((float)this.getAttributeValue(Attributes.FLYING_SPEED));
 
@@ -276,8 +293,6 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
                 this.calculateEntityAnimation(false);
                 this.applyEffectsFromBlocks();
             } else {
-//                this.flyingSpeed = 0.02F;
-
                 if (this.isInLava()) {
                     this.moveRelative(0.02F, travelVector);
                     this.move(MoverType.SELF, this.getDeltaMovement());
@@ -421,6 +436,51 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
         return this.factory;
     }
 
+    static class EndWhaleMoveControl extends MoveControl {
+        private final EndWhaleEntity endWhale;
+
+        EndWhaleMoveControl(EndWhaleEntity endWhale) {
+            super(endWhale);
+            this.endWhale = endWhale;
+        }
+
+        @Override
+        public void tick() {
+            if (this.operation != Operation.MOVE_TO || this.endWhale.isVehicle()) {
+                return;
+            }
+
+            Vec3 offset = new Vec3(
+                    this.wantedX - this.endWhale.getX(),
+                    this.wantedY - this.endWhale.getY(),
+                    this.wantedZ - this.endWhale.getZ()
+            );
+            double distanceSqr = offset.lengthSqr();
+            if (distanceSqr < FREE_FLIGHT_ARRIVAL_DISTANCE_SQR) {
+                this.operation = Operation.WAIT;
+                return;
+            }
+
+            double distance = Math.sqrt(distanceSqr);
+            Vec3 direction = offset.scale(1.0D / distance);
+            double speed = this.speedModifier * this.endWhale.getAttributeValue(Attributes.FLYING_SPEED) * FREE_FLIGHT_SPEED_SCALE;
+            Vec3 targetMovement = direction.scale(speed);
+            Vec3 currentMovement = this.endWhale.getDeltaMovement();
+            Vec3 nextMovement = currentMovement.add(targetMovement.subtract(currentMovement).scale(FREE_FLIGHT_ACCELERATION));
+            this.endWhale.setDeltaMovement(nextMovement);
+
+            float targetYaw = (float)(Mth.atan2(offset.z, offset.x) * (180.0F / Mth.PI)) - 90.0F;
+            this.endWhale.setYRot(Mth.rotLerp(FREE_FLIGHT_YAW_LERP, this.endWhale.getYRot(), targetYaw));
+            this.endWhale.yBodyRot = this.endWhale.getYRot();
+            this.endWhale.yHeadRot = this.endWhale.yBodyRot;
+
+            double horizontalDistance = Math.sqrt(offset.x * offset.x + offset.z * offset.z);
+            float targetPitch = (float)(-(Mth.atan2(offset.y, horizontalDistance) * (180.0F / Mth.PI)));
+            targetPitch = Mth.clamp(targetPitch, -FREE_FLIGHT_MAX_PITCH, FREE_FLIGHT_MAX_PITCH);
+            this.endWhale.setXRot(Mth.rotLerp(FREE_FLIGHT_PITCH_LERP, this.endWhale.getXRot(), targetPitch));
+        }
+    }
+
     static class EndWhaleLookControl extends LookControl {
         private final EndWhaleEntity endWhale;
 
@@ -492,7 +552,12 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
     }
 
     static class EndWhaleWanderGoal extends Goal {
+        private static final int DIRECT_TRAVEL_TICKS = 200;
+
         private final EndWhaleEntity endWhale;
+        @Nullable
+        private Vec3 target;
+        private int travelTicks;
 
         EndWhaleWanderGoal(EndWhaleEntity endWhale) {
             this.setFlags(EnumSet.of(Goal.Flag.MOVE));
@@ -501,25 +566,45 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
 
         @Override
         public boolean canUse() {
-            return this.endWhale.navigation.isDone() && this.endWhale.random.nextInt(3) == 0 && !this.endWhale.isVehicle() && !this.endWhale.isLeashed();
+            if (this.endWhale.random.nextInt(3) != 0 || this.endWhale.isVehicle() || this.endWhale.isLeashed()) {
+                return false;
+            }
+
+            this.target = this.findPos();
+            return this.target != null;
         }
 
         @Override
         public boolean canContinueToUse() {
-            return this.endWhale.navigation.isInProgress() && !this.endWhale.isVehicle() && !this.endWhale.isLeashed();
+            return this.target != null && this.travelTicks > 0 && !this.endWhale.isVehicle() && !this.endWhale.isLeashed() && this.endWhale.distanceToSqr(this.target) > FREE_FLIGHT_ARRIVAL_DISTANCE_SQR;
         }
 
         @Override
         public void start() {
-            Vec3 vec3 = this.findPos();
-            if (vec3 != null) {
-                this.endWhale.navigation.moveTo(this.endWhale.navigation.createPath(BlockPos.containing(vec3), 3), 1.0D);
+            this.travelTicks = adjustedTickDelay(DIRECT_TRAVEL_TICKS);
+            this.updateWantedPosition();
+        }
+
+        @Override
+        public void tick() {
+            --this.travelTicks;
+            if (this.travelTicks % 20 == 0) {
+                this.updateWantedPosition();
             }
         }
 
         @Override
         public void stop() {
             this.endWhale.navigation.stop();
+            this.endWhale.getMoveControl().setWantedPosition(this.endWhale.getX(), this.endWhale.getY(), this.endWhale.getZ(), 0.0D);
+            this.target = null;
+            this.travelTicks = 0;
+        }
+
+        private void updateWantedPosition() {
+            if (this.target != null) {
+                this.endWhale.getMoveControl().setWantedPosition(this.target.x, this.target.y, this.target.z, 1.0D);
+            }
         }
 
         @Nullable
@@ -538,7 +623,7 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
     }
 
     static class EndWhaleTemptGoal extends Goal {
-        private static final TargetingConditions TEMP_TARGETING = TargetingConditions.forNonCombat().range(100.0D).ignoreLineOfSight();
+        private static final TargetingConditions TEMP_TARGETING = TargetingConditions.forNonCombat().range(TEMPT_SEARCH_RANGE).ignoreLineOfSight();
         private final TargetingConditions targetingConditions;
         protected final EndWhaleEntity endWhale;
         private final double speedModifier;
@@ -570,29 +655,51 @@ public class EndWhaleEntity extends TamableAnimal implements FlyingAnimal, GeoEn
         }
 
         private boolean shouldFollow(LivingEntity entity, ServerLevel level) {
+            return this.isHoldingFood(entity);
+        }
+
+        private boolean isHoldingFood(LivingEntity entity) {
             return this.items.test(entity.getMainHandItem()) || this.items.test(entity.getOffhandItem());
         }
 
         @Override
         public boolean canContinueToUse() {
-            return this.canUse();
+            return this.player != null && this.player.isAlive() && !this.endWhale.isVehicle() && this.endWhale.distanceToSqr(this.player) <= TEMPT_SEARCH_RANGE_SQR && this.isHoldingFood(this.player);
         }
 
         @Override
         public void stop() {
             this.player = null;
             this.endWhale.getNavigation().stop();
+            this.endWhale.getMoveControl().setWantedPosition(this.endWhale.getX(), this.endWhale.getY(), this.endWhale.getZ(), 0.0D);
             this.calmDown = reducedTickDelay(100);
         }
 
         @Override
         public void tick() {
-            this.endWhale.getLookControl().setLookAt(this.player, (float)(this.endWhale.getMaxHeadYRot() + 20), (float)this.endWhale.getMaxHeadXRot());
-            if (this.endWhale.distanceToSqr(this.player) < 6.25D) {
-                this.endWhale.getNavigation().stop();
-            } else {
-                this.endWhale.getNavigation().moveTo(this.player, this.speedModifier);
+            if (this.player == null) {
+                return;
             }
+
+            this.endWhale.getLookControl().setLookAt(this.player, (float)(this.endWhale.getMaxHeadYRot() + 20), (float)this.endWhale.getMaxHeadXRot());
+            if (this.endWhale.distanceToSqr(this.player) < TEMPT_STOP_DISTANCE_SQR) {
+                this.endWhale.getNavigation().stop();
+                this.endWhale.getMoveControl().setWantedPosition(this.endWhale.getX(), this.endWhale.getY(), this.endWhale.getZ(), 0.0D);
+                this.endWhale.setDeltaMovement(this.endWhale.getDeltaMovement().scale(0.9D));
+            } else {
+                Vec3 target = this.getTemptTarget();
+                this.endWhale.getMoveControl().setWantedPosition(target.x, target.y, target.z, this.speedModifier);
+            }
+        }
+
+        private Vec3 getTemptTarget() {
+            Vec3 playerTarget = this.player.getEyePosition().add(0.0D, TEMPT_VERTICAL_OFFSET, 0.0D);
+            Vec3 toPlayer = playerTarget.subtract(this.endWhale.position());
+            if (toPlayer.lengthSqr() < 1.0E-6D) {
+                return playerTarget;
+            }
+
+            return playerTarget.subtract(toPlayer.normalize().scale(TEMPT_STOP_DISTANCE));
         }
     }
 }
