@@ -20,6 +20,19 @@ public final class MinipadGlow {
         return normalizeTime(defaultClockTime) > START_TIME;
     }
 
+    public static int ticksUntilNextGlowChange(long defaultClockTime) {
+        long time = normalizeTime(defaultClockTime);
+        if (time < START_TIME) {
+            return (int) (START_TIME - time);
+        }
+
+        if (time <= END_TIME) {
+            return (int) (END_TIME - time + 1);
+        }
+
+        return (int) (DAY_TIME - time + START_TIME);
+    }
+
     public static float getAlpha(long defaultClockTime, float partialTick) {
         float time = normalizeTime(defaultClockTime) + partialTick;
         if (time >= DAY_TIME) {

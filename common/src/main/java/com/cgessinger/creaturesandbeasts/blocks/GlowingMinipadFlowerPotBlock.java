@@ -3,28 +3,25 @@ package com.cgessinger.creaturesandbeasts.blocks;
 import com.cgessinger.creaturesandbeasts.util.CNBRegistrySupplier;
 import com.cgessinger.creaturesandbeasts.util.MinipadGlow;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.FlowerBlock;
+import net.minecraft.world.level.block.FlowerPotBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 
-public class GlowingMinipadFlowerBlock extends FlowerBlock {
+public class GlowingMinipadFlowerPotBlock extends FlowerPotBlock {
     public static final BooleanProperty LIT = BlockStateProperties.LIT;
     private static final double PARTICLE_CHANCE = 0.1D;
     private final CNBRegistrySupplier<SimpleParticleType> particle;
 
-    public GlowingMinipadFlowerBlock(Holder<MobEffect> effect, float seconds, BlockBehaviour.Properties properties, CNBRegistrySupplier<SimpleParticleType> particle) {
-        super(effect, seconds, properties);
+    public GlowingMinipadFlowerPotBlock(Block content, BlockBehaviour.Properties properties, CNBRegistrySupplier<SimpleParticleType> particle) {
+        super(content, properties);
         this.particle = particle;
         this.registerDefaultState(this.defaultBlockState().setValue(LIT, false));
     }
@@ -34,25 +31,17 @@ public class GlowingMinipadFlowerBlock extends FlowerBlock {
     }
 
     @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        return super.getStateForPlacement(context).setValue(LIT, isLit(context.getLevel()));
-    }
-
-    @Override
     protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
         super.onPlace(state, level, pos, oldState, movedByPiston);
         if (!level.isClientSide()) {
+            updateGlowState(state, level, pos);
             level.scheduleTick(pos, this, ticksUntilNextGlowChange(level));
         }
     }
 
     @Override
     protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
-        boolean lit = isLit(level);
-        if (state.getValue(LIT) != lit) {
-            level.setBlock(pos, state.setValue(LIT, lit), Block.UPDATE_ALL);
-        }
-
+        updateGlowState(state, level, pos);
         level.scheduleTick(pos, this, ticksUntilNextGlowChange(level));
     }
 
@@ -64,7 +53,7 @@ public class GlowingMinipadFlowerBlock extends FlowerBlock {
         }
 
         double x = pos.getX() + 0.5D + (random.nextDouble() * 0.5D - 0.25D);
-        double y = pos.getY() + 0.18D + (random.nextDouble() * 0.08D - 0.04D);
+        double y = pos.getY() + 0.55D + (random.nextDouble() * 0.08D - 0.04D);
         double z = pos.getZ() + 0.5D + (random.nextDouble() * 0.5D - 0.25D);
         level.addParticle(this.particle.get(), x, y, z, 0D, 0D, 0D);
     }
@@ -75,8 +64,11 @@ public class GlowingMinipadFlowerBlock extends FlowerBlock {
         builder.add(LIT);
     }
 
-    private static boolean isLit(Level level) {
-        return MinipadGlow.isNightGlowTime(level.getDefaultClockTime());
+    private static void updateGlowState(BlockState state, Level level, BlockPos pos) {
+        boolean lit = MinipadGlow.isNightGlowTime(level.getDefaultClockTime());
+        if (state.getValue(LIT) != lit) {
+            level.setBlock(pos, state.setValue(LIT, lit), Block.UPDATE_ALL);
+        }
     }
 
     private static int ticksUntilNextGlowChange(Level level) {

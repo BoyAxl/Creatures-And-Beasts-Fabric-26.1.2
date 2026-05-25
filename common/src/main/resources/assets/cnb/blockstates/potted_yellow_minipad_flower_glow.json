@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "cnb:block/potted_yellow_minipad_flower_glow"
+    },
+    "lit=true": {
+      "model": "cnb:block/potted_yellow_minipad_flower_glow_lit"
+    }
+  }
+}

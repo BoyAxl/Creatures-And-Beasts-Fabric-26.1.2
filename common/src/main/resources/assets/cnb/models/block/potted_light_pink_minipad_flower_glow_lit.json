@@ -1,0 +1,6 @@
+{
+  "parent": "cnb:block/template_potted_minipad_flower",
+  "textures": {
+    "0": "cnb:block/minipad_light_pink_glow"
+  }
+}
