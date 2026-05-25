@@ -10,7 +10,6 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.food.FoodProperties;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
@@ -27,11 +26,11 @@ public class CNBItems {
     // Food
     public static final CNBRegistrySupplier<Item> APPLE_SLICE = ITEMS.register("apple_slice", () -> new Item(CreaturesAndBeasts.itemProperties("apple_slice")
             .food(new FoodProperties.Builder().nutrition(1).saturationModifier(0.3F).build())));
-    public static final CNBRegistrySupplier<WaterlilyBlockItem> PINK_WATERLILY = ITEMS.register("pink_waterlily", () -> new WaterlilyBlockItem(CNBBlocks.PINK_WATERLILY_BLOCK.get(), CreaturesAndBeasts.itemProperties("pink_waterlily")
+    public static final CNBRegistrySupplier<FloatingFlowerBlockItem> PINK_WATERLILY = ITEMS.register("pink_waterlily", () -> new FloatingFlowerBlockItem(CNBBlocks.PINK_WATERLILY_BLOCK.get(), CreaturesAndBeasts.itemProperties("pink_waterlily")
             .food(new FoodProperties.Builder().nutrition(4).saturationModifier(0.5F).alwaysEdible().build(), instantHealthFood())));
-    public static final CNBRegistrySupplier<WaterlilyBlockItem> LIGHT_PINK_WATERLILY = ITEMS.register("light_pink_waterlily", () -> new WaterlilyBlockItem(CNBBlocks.LIGHT_PINK_WATERLILY_BLOCK.get(), CreaturesAndBeasts.itemProperties("light_pink_waterlily")
+    public static final CNBRegistrySupplier<FloatingFlowerBlockItem> LIGHT_PINK_WATERLILY = ITEMS.register("light_pink_waterlily", () -> new FloatingFlowerBlockItem(CNBBlocks.LIGHT_PINK_WATERLILY_BLOCK.get(), CreaturesAndBeasts.itemProperties("light_pink_waterlily")
             .food(new FoodProperties.Builder().nutrition(4).saturationModifier(0.5F).alwaysEdible().build(), instantHealthFood())));
-    public static final CNBRegistrySupplier<WaterlilyBlockItem> YELLOW_WATERLILY = ITEMS.register("yellow_waterlily", () -> new WaterlilyBlockItem(CNBBlocks.YELLOW_WATERLILY_BLOCK.get(), CreaturesAndBeasts.itemProperties("yellow_waterlily")
+    public static final CNBRegistrySupplier<FloatingFlowerBlockItem> YELLOW_WATERLILY = ITEMS.register("yellow_waterlily", () -> new FloatingFlowerBlockItem(CNBBlocks.YELLOW_WATERLILY_BLOCK.get(), CreaturesAndBeasts.itemProperties("yellow_waterlily")
             .food(new FoodProperties.Builder().nutrition(4).saturationModifier(0.5F).alwaysEdible().build(), instantHealthFood())));
 
     // Bucketed Mobs
@@ -44,9 +43,9 @@ public class CNBItems {
     public static final CNBRegistrySupplier<Item> YETI_ANTLER = ITEMS.register("yeti_antler", () -> new Item(CreaturesAndBeasts.itemProperties("yeti_antler")));
     public static final CNBRegistrySupplier<Item> YETI_HIDE = ITEMS.register("yeti_hide", () -> new Item(CreaturesAndBeasts.itemProperties("yeti_hide")));
 
-    public static final CNBRegistrySupplier<Item> PINK_MINIPAD_FLOWER = ITEMS.register("pink_minipad_flower", () -> new BlockItem(CNBBlocks.PINK_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("pink_minipad_flower")));
-    public static final CNBRegistrySupplier<Item> LIGHT_PINK_MINIPAD_FLOWER = ITEMS.register("light_pink_minipad_flower", () -> new BlockItem(CNBBlocks.LIGHT_PINK_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("light_pink_minipad_flower")));
-    public static final CNBRegistrySupplier<Item> YELLOW_MINIPAD_FLOWER = ITEMS.register("yellow_minipad_flower", () -> new BlockItem(CNBBlocks.YELLOW_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("yellow_minipad_flower")));
+    public static final CNBRegistrySupplier<Item> PINK_MINIPAD_FLOWER = ITEMS.register("pink_minipad_flower", () -> new FloatingFlowerBlockItem(CNBBlocks.PINK_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("pink_minipad_flower")));
+    public static final CNBRegistrySupplier<Item> LIGHT_PINK_MINIPAD_FLOWER = ITEMS.register("light_pink_minipad_flower", () -> new FloatingFlowerBlockItem(CNBBlocks.LIGHT_PINK_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("light_pink_minipad_flower")));
+    public static final CNBRegistrySupplier<Item> YELLOW_MINIPAD_FLOWER = ITEMS.register("yellow_minipad_flower", () -> new FloatingFlowerBlockItem(CNBBlocks.YELLOW_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("yellow_minipad_flower")));
     public static final CNBRegistrySupplier<Item> PINK_MINIPAD_FLOWER_GLOW = ITEMS.register("pink_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CNBBlocks.PINK_MINIPAD_FLOWER_GLOW_BLOCK.get(), CreaturesAndBeasts.itemProperties("pink_minipad_flower_glow")));
     public static final CNBRegistrySupplier<Item> LIGHT_PINK_MINIPAD_FLOWER_GLOW = ITEMS.register("light_pink_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CNBBlocks.LIGHT_PINK_MINIPAD_FLOWER_GLOW_BLOCK.get(), CreaturesAndBeasts.itemProperties("light_pink_minipad_flower_glow")));
     public static final CNBRegistrySupplier<Item> YELLOW_MINIPAD_FLOWER_GLOW = ITEMS.register("yellow_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CNBBlocks.YELLOW_MINIPAD_FLOWER_GLOW_BLOCK.get(), CreaturesAndBeasts.itemProperties("yellow_minipad_flower_glow")));
