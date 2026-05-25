@@ -33,7 +33,7 @@ The port is built against the **26.1** baseline and declares compatibility with 
 The Fabric jar is generated at:
 
 ```text
-fabric/build/libs/CreaturesAndBeasts-Fabric-1.0.0+26.1.x.jar
+fabric/build/libs/CreaturesAndBeasts-Fabric-1.0.1+26.1.x.jar
 ```
 
 ## 🧡 Credits
