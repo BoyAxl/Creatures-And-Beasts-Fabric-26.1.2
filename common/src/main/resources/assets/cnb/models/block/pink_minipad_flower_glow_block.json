@@ -1,0 +1,7 @@
+{
+  "parent": "cnb:block/template_minipad_flower",
+  "textures": {
+    "0": "cnb:block/minipad_pink",
+    "particle": "cnb:block/minipad_pink"
+  }
+}

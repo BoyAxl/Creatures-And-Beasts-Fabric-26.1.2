@@ -1,11 +1,13 @@
 package com.cgessinger.creaturesandbeasts.items;
 
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 
-public class MinipadFlowerGlowItem extends Item {
-    public MinipadFlowerGlowItem(Properties properties) {
-        super(properties);
+public class MinipadFlowerGlowItem extends BlockItem {
+    public MinipadFlowerGlowItem(Block block, Item.Properties properties) {
+        super(block, properties);
     }
 
     @Override

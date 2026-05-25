@@ -1,0 +1,97 @@
+package com.cgessinger.creaturesandbeasts.blocks;
+
+import com.cgessinger.creaturesandbeasts.util.CNBRegistrySupplier;
+import com.cgessinger.creaturesandbeasts.util.MinipadGlow;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.particles.SimpleParticleType;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.FlowerBlock;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+
+public class GlowingMinipadFlowerBlock extends FlowerBlock {
+    public static final BooleanProperty LIT = BlockStateProperties.LIT;
+    private static final int DAY_TIME = 24000;
+    private static final int START_TIME = 13000;
+    private static final int END_TIME = 23000;
+    private static final double PARTICLE_CHANCE = 0.1D;
+    private final CNBRegistrySupplier<SimpleParticleType> particle;
+
+    public GlowingMinipadFlowerBlock(Holder<MobEffect> effect, float seconds, BlockBehaviour.Properties properties, CNBRegistrySupplier<SimpleParticleType> particle) {
+        super(effect, seconds, properties);
+        this.particle = particle;
+        this.registerDefaultState(this.defaultBlockState().setValue(LIT, false));
+    }
+
+    public static int getLightLevel(BlockState state) {
+        return state.getValue(LIT) ? 14 : 0;
+    }
+
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        return super.getStateForPlacement(context).setValue(LIT, isLit(context.getLevel()));
+    }
+
+    @Override
+    protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+        super.onPlace(state, level, pos, oldState, movedByPiston);
+        if (!level.isClientSide()) {
+            level.scheduleTick(pos, this, ticksUntilNextGlowChange(level));
+        }
+    }
+
+    @Override
+    protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        boolean lit = isLit(level);
+        if (state.getValue(LIT) != lit) {
+            level.setBlock(pos, state.setValue(LIT, lit), Block.UPDATE_ALL);
+        }
+
+        level.scheduleTick(pos, this, ticksUntilNextGlowChange(level));
+    }
+
+    @Override
+    public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
+        super.animateTick(state, level, pos, random);
+        if (!state.getValue(LIT) || random.nextDouble() >= PARTICLE_CHANCE) {
+            return;
+        }
+
+        double x = pos.getX() + 0.5D + (random.nextDouble() * 0.5D - 0.25D);
+        double y = pos.getY() + 0.18D + (random.nextDouble() * 0.08D - 0.04D);
+        double z = pos.getZ() + 0.5D + (random.nextDouble() * 0.5D - 0.25D);
+        level.addParticle(this.particle.get(), x, y, z, 0D, 0D, 0D);
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder);
+        builder.add(LIT);
+    }
+
+    private static boolean isLit(Level level) {
+        return MinipadGlow.isNightGlowTime(level.getDefaultClockTime());
+    }
+
+    private static int ticksUntilNextGlowChange(Level level) {
+        long time = Math.floorMod(level.getDefaultClockTime(), DAY_TIME);
+        if (time < START_TIME) {
+            return (int) (START_TIME - time);
+        }
+
+        if (time <= END_TIME) {
+            return (int) (END_TIME - time + 1);
+        }
+
+        return (int) (DAY_TIME - time + START_TIME);
+    }
+}

@@ -10,6 +10,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
@@ -43,12 +44,12 @@ public class CNBItems {
     public static final CNBRegistrySupplier<Item> YETI_ANTLER = ITEMS.register("yeti_antler", () -> new Item(CreaturesAndBeasts.itemProperties("yeti_antler")));
     public static final CNBRegistrySupplier<Item> YETI_HIDE = ITEMS.register("yeti_hide", () -> new Item(CreaturesAndBeasts.itemProperties("yeti_hide")));
 
-    public static final CNBRegistrySupplier<Item> PINK_MINIPAD_FLOWER = ITEMS.register("pink_minipad_flower", () -> new Item(CreaturesAndBeasts.itemProperties("pink_minipad_flower")));
-    public static final CNBRegistrySupplier<Item> LIGHT_PINK_MINIPAD_FLOWER = ITEMS.register("light_pink_minipad_flower", () -> new Item(CreaturesAndBeasts.itemProperties("light_pink_minipad_flower")));
-    public static final CNBRegistrySupplier<Item> YELLOW_MINIPAD_FLOWER = ITEMS.register("yellow_minipad_flower", () -> new Item(CreaturesAndBeasts.itemProperties("yellow_minipad_flower")));
-    public static final CNBRegistrySupplier<Item> PINK_MINIPAD_FLOWER_GLOW = ITEMS.register("pink_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CreaturesAndBeasts.itemProperties("pink_minipad_flower_glow")));
-    public static final CNBRegistrySupplier<Item> LIGHT_PINK_MINIPAD_FLOWER_GLOW = ITEMS.register("light_pink_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CreaturesAndBeasts.itemProperties("light_pink_minipad_flower_glow")));
-    public static final CNBRegistrySupplier<Item> YELLOW_MINIPAD_FLOWER_GLOW = ITEMS.register("yellow_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CreaturesAndBeasts.itemProperties("yellow_minipad_flower_glow")));
+    public static final CNBRegistrySupplier<Item> PINK_MINIPAD_FLOWER = ITEMS.register("pink_minipad_flower", () -> new BlockItem(CNBBlocks.PINK_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("pink_minipad_flower")));
+    public static final CNBRegistrySupplier<Item> LIGHT_PINK_MINIPAD_FLOWER = ITEMS.register("light_pink_minipad_flower", () -> new BlockItem(CNBBlocks.LIGHT_PINK_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("light_pink_minipad_flower")));
+    public static final CNBRegistrySupplier<Item> YELLOW_MINIPAD_FLOWER = ITEMS.register("yellow_minipad_flower", () -> new BlockItem(CNBBlocks.YELLOW_MINIPAD_FLOWER_BLOCK.get(), CreaturesAndBeasts.itemProperties("yellow_minipad_flower")));
+    public static final CNBRegistrySupplier<Item> PINK_MINIPAD_FLOWER_GLOW = ITEMS.register("pink_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CNBBlocks.PINK_MINIPAD_FLOWER_GLOW_BLOCK.get(), CreaturesAndBeasts.itemProperties("pink_minipad_flower_glow")));
+    public static final CNBRegistrySupplier<Item> LIGHT_PINK_MINIPAD_FLOWER_GLOW = ITEMS.register("light_pink_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CNBBlocks.LIGHT_PINK_MINIPAD_FLOWER_GLOW_BLOCK.get(), CreaturesAndBeasts.itemProperties("light_pink_minipad_flower_glow")));
+    public static final CNBRegistrySupplier<Item> YELLOW_MINIPAD_FLOWER_GLOW = ITEMS.register("yellow_minipad_flower_glow", () -> new MinipadFlowerGlowItem(CNBBlocks.YELLOW_MINIPAD_FLOWER_GLOW_BLOCK.get(), CreaturesAndBeasts.itemProperties("yellow_minipad_flower_glow")));
 
     public static final CNBRegistrySupplier<HealSpellBookItem> HEAL_SPELL_BOOK_1 = ITEMS.register("heal_spell_book_1", () -> new HealSpellBookItem(CreaturesAndBeasts.itemProperties("heal_spell_book_1").stacksTo(1)));
     public static final CNBRegistrySupplier<HealSpellBookItem> HEAL_SPELL_BOOK_2 = ITEMS.register("heal_spell_book_2", () -> new HealSpellBookItem(CreaturesAndBeasts.itemProperties("heal_spell_book_2").stacksTo(1)));
@@ -90,6 +91,9 @@ public class CNBItems {
 
     public static void addCreativeTabItems(CreativeModeTab.Output output) {
         output.accept(APPLE_SLICE.get());
+        output.accept(PINK_WATERLILY.get());
+        output.accept(LIGHT_PINK_WATERLILY.get());
+        output.accept(YELLOW_WATERLILY.get());
         output.accept(CINDERSHELL_BUCKET.get());
         output.accept(ENTITY_NET.get());
         output.accept(YETI_ANTLER.get());
