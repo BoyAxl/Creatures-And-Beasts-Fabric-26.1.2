@@ -21,6 +21,7 @@ build
 .vscode
 
 # other
+.DS_Store
 eclipse
 run
 key.properties

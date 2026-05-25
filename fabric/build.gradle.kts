@@ -2,15 +2,14 @@ plugins {
     id("net.fabricmc.fabric-loom")
 }
 
-val modVersion = System.getenv("GITHUB_TAG")?.removePrefix("v")
-    ?: rootProject.property("mod_version") as String
+fun prop(name: String) = rootProject.property(name) as String
 
 loom {
     accessWidenerPath = file("../common/src/main/resources/creaturesandbeasts.accesswidener")
 }
 
 base {
-    archivesName = "${rootProject.property("mod_name")}-Fabric"
+    archivesName = "${prop("mod_name")}-Fabric"
 }
 
 sourceSets {
@@ -21,29 +20,32 @@ sourceSets {
 }
 
 dependencies {
-    minecraft("com.mojang:minecraft:${rootProject.property("minecraft_version")}")
+    minecraft("com.mojang:minecraft:${prop("minecraft_version")}")
 
-    implementation("net.fabricmc:fabric-loader:${rootProject.property("fabric_loader_version")}")
-    implementation("net.fabricmc.fabric-api:fabric-api:${rootProject.property("fabric_api_version")}")
-    implementation("maven.modrinth:geckolib:${rootProject.property("geckolib_version")}")
+    implementation("net.fabricmc:fabric-loader:${prop("fabric_loader_version")}")
+    implementation("net.fabricmc.fabric-api:fabric-api:${prop("fabric_api_version")}")
+    implementation("maven.modrinth:geckolib:${prop("geckolib_version")}")
 
-    implementation("org.infernalstudios:config:${rootProject.property("infernalstudios_config_version")}")
-    implementation("com.electronwill.night-config:core:${rootProject.property("nightconfig_version")}")
-    implementation("com.electronwill.night-config:toml:${rootProject.property("nightconfig_version")}")
-    include("org.infernalstudios:config:${rootProject.property("infernalstudios_config_version")}")
-    include("com.electronwill.night-config:core:${rootProject.property("nightconfig_version")}")
-    include("com.electronwill.night-config:toml:${rootProject.property("nightconfig_version")}")
+    implementation("org.infernalstudios:config:${prop("infernalstudios_config_version")}")
+    implementation("com.electronwill.night-config:core:${prop("nightconfig_version")}")
+    implementation("com.electronwill.night-config:toml:${prop("nightconfig_version")}")
+    include("org.infernalstudios:config:${prop("infernalstudios_config_version")}")
+    include("com.electronwill.night-config:core:${prop("nightconfig_version")}")
+    include("com.electronwill.night-config:toml:${prop("nightconfig_version")}")
 }
 
 tasks {
     processResources {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         properties(listOf("fabric.mod.json"),
-            "mod_version" to modVersion,
-            "minecraft_version" to rootProject.property("minecraft_version"),
-            "geckolib_version" to rootProject.property("geckolib_version"),
-            "fabric_loader_version" to rootProject.property("fabric_loader_version"),
-            "fabric_api_version" to rootProject.property("fabric_api_version")
+            "mod_version" to project.version,
+            "minecraft_version" to prop("minecraft_version"),
+            "minecraft_version_range" to prop("minecraft_version_range"),
+            "geckolib_version" to prop("geckolib_version"),
+            "fabric_loader_version" to prop("fabric_loader_version"),
+            "fabric_loader_version_range" to prop("fabric_loader_version_range"),
+            "fabric_api_version" to prop("fabric_api_version"),
+            "fabric_api_version_range" to prop("fabric_api_version_range")
         )
     }
 }

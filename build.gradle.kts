@@ -5,14 +5,17 @@ plugins {
 
 val modVersion = System.getenv("GITHUB_TAG")?.removePrefix("v")
     ?: rootProject.property("mod_version") as String
+val minecraftVersionLabel = rootProject.property("minecraft_version_label") as String
+val mavenGroup = rootProject.property("maven_group") as String
 
 allprojects {
     apply(plugin = "java")
 
-    version = "${modVersion}+${rootProject.property("minecraft_version")}"
-    group = rootProject.property("maven_group") as String
+    version = "$modVersion+$minecraftVersionLabel"
+    group = mavenGroup
 
     repositories {
+        mavenCentral()
         maven("https://maven.fabricmc.net/")
         maven("https://api.modrinth.com/maven")
         maven("https://maven.infernalstudios.org/releases")

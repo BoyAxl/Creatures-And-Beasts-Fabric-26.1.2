@@ -33,9 +33,9 @@
         "creatures-and-beasts.fabric.mixins.json"
     ],
     "depends": {
-        "fabricloader": ">=${fabric_loader_version}",
-        "fabric-api": ">=${fabric_api_version}",
-        "minecraft": "${minecraft_version}",
+        "fabricloader": "${fabric_loader_version_range}",
+        "fabric-api": "${fabric_api_version_range}",
+        "minecraft": "${minecraft_version_range}",
         "java": ">=25",
         "geckolib": ">=${geckolib_version}"
     },

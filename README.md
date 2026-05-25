@@ -1,16 +1,18 @@
-# Creatures and Beasts - Fabric 26.1.2 Port
+# Creatures and Beasts - Fabric 26.1.x Port
 
-Unofficial Fabric port of **Creatures and Beasts** for **Minecraft 26.1.2**.
+Unofficial Fabric port of **Creatures and Beasts** for **Minecraft 26.1.x**.
 
 This repository keeps the spirit of the original Forge mod while moving the codebase to the current Fabric toolchain, Fabric API, and Geckolib 5.
 
 ## ✨ Status
 
 - 🧵 Loader: **Fabric**
-- ⛏️ Minecraft: **26.1.2**
+- ⛏️ Minecraft: **26.1.x**
 - 🦎 Geckolib: **5.5.1**
 - ☕ Java: **25+**
 - 🧪 State: playable test port, still being verified in-game
+
+The port is built against the **26.1** baseline and declares compatibility with the **26.1.x** line, including **26.1**, **26.1.1**, and **26.1.2**.
 
 ## 🌿 What Works
 
@@ -31,7 +33,7 @@ This repository keeps the spirit of the original Forge mod while moving the code
 The Fabric jar is generated at:
 
 ```text
-fabric/build/libs/CreaturesAndBeasts-Fabric-1.5.4+26.1.2.jar
+fabric/build/libs/CreaturesAndBeasts-Fabric-1.0.0+26.1.x.jar
 ```
 
 ## 🧡 Credits
