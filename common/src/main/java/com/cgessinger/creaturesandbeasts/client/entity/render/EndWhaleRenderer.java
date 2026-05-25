@@ -26,6 +26,7 @@ public class EndWhaleRenderer extends GeoEntityRenderer<EndWhaleEntity, LivingEn
     public EndWhaleRenderer(EntityRendererProvider.Context renderManager) {
         super(renderManager, new EndWhaleModel());
         this.shadowRadius = 1.5F;
+        this.withRenderLayer(new EndWhaleGlowLayer(this));
     }
 
     @Override
