@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_glowing_minipad_flower": {
+      "conditions": {
+        "items": [
+          {
+            "items": "#cnb:glowing_minipad_flowers"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "cnb:crafting/shaped/glowing_flower_crown"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_glowing_minipad_flower"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "cnb:crafting/shaped/glowing_flower_crown"
+    ]
+  }
+}

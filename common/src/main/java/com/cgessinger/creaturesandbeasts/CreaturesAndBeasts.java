@@ -63,6 +63,7 @@ public class CreaturesAndBeasts {
         this.proxy = proxy;
 
         TAB_REGISTRY.register();
+        CNBDataComponents.DATA_COMPONENT_TYPES.register();
         CNBParticleTypes.PARTICLE_TYPES.register();
         CNBBlocks.BLOCKS.register();
         CNBEntityTypes.ENTITY_TYPES.register();

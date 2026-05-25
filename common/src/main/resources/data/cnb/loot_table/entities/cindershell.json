@@ -28,31 +28,6 @@
           "name": "cnb:cindershell_shell_shard"
         }
       ]
-    },
-    {
-      "rolls": 1,
-      "conditions": [
-        {
-          "condition": "minecraft:random_chance",
-          "chance": 0.06849315
-        }
-      ],
-      "entries": [
-        {
-          "type": "minecraft:item",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "min": 1.0,
-                "max": 3.0,
-                "type": "minecraft:uniform"
-              }
-            }
-          ],
-          "name": "cnb:cindershell_shell_shard"
-        }
-      ]
     }
   ]
 }

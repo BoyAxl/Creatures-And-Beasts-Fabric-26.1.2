@@ -756,15 +756,6 @@ public class CindershellEntity extends Animal implements GeoEntity, Bucketable, 
         return this.factory;
     }
 
-    @Override
-    protected void dropCustomDeathLoot(ServerLevel level, DamageSource damageSource, boolean hitByPlayer) {
-        super.dropCustomDeathLoot(level, damageSource, hitByPlayer);
-
-        if (this.getRandom().nextInt(73) < 5) {
-            this.spawnAtLocation(level, new ItemStack(CNBItems.CINDERSHELL_SHELL_SHARD.get(), this.getRandom().nextInt(3) + 1));
-        }
-    }
-
     static class CindershellFloatGoal extends FloatGoal {
         private final CindershellEntity cindershell;
 

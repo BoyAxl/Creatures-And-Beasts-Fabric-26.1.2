@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_minipad_flower": {
+      "conditions": {
+        "items": [
+          {
+            "items": "#cnb:minipad_flowers"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "cnb:crafting/shaped/flower_crown"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_minipad_flower"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "cnb:crafting/shaped/flower_crown"
+    ]
+  }
+}
