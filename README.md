@@ -8,7 +8,7 @@ This repository keeps the spirit of the original Forge mod while moving the code
 
 - 🧵 Loader: **Fabric**
 - ⛏️ Minecraft: **26.1.x**
-- 🦎 Geckolib: **5.5.1**
+- 🦎 Geckolib: **5.5+**
 - ☕ Java: **25+**
 - 🧪 State: playable test port, still being verified in-game
 
@@ -33,7 +33,7 @@ The port is built against the **26.1** baseline and declares compatibility with 
 The Fabric jar is generated at:
 
 ```text
-fabric/build/libs/CreaturesAndBeasts-Fabric-1.0.1+26.1.x.jar
+fabric/build/libs/CreaturesAndBeasts-Fabric-1.0.2+26.1.x.jar
 ```
 
 ## 🧡 Credits
