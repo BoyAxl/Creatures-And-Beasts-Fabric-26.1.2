@@ -36,6 +36,7 @@ public class SporelingRenderer extends GeoEntityRenderer<SporelingEntity, Living
 
     public SporelingRenderer(EntityRendererProvider.Context context) {
         super(context, new SporelingModel());
+        this.withRenderLayer(new SporelingGlowLayer(this));
         this.withRenderLayer(new SporelingHeldItemLayer(context, this));
         this.shadowRadius = 0.4F;
     }
