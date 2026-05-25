@@ -2,6 +2,9 @@ plugins {
     id("net.fabricmc.fabric-loom")
 }
 
+val modVersion = System.getenv("GITHUB_TAG")?.removePrefix("v")
+    ?: rootProject.property("mod_version") as String
+
 loom {
     accessWidenerPath = file("../common/src/main/resources/creaturesandbeasts.accesswidener")
 }
@@ -36,7 +39,7 @@ tasks {
     processResources {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         properties(listOf("fabric.mod.json"),
-            "mod_version" to rootProject.property("mod_version"),
+            "mod_version" to modVersion,
             "minecraft_version" to rootProject.property("minecraft_version"),
             "geckolib_version" to rootProject.property("geckolib_version"),
             "fabric_loader_version" to rootProject.property("fabric_loader_version"),
