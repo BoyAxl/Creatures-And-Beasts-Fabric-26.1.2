@@ -1,7 +1,6 @@
 package com.cgessinger.creaturesandbeasts.entities;
 
 import com.cgessinger.creaturesandbeasts.entities.ai.ReachableBlockTargetGoal;
-import com.cgessinger.creaturesandbeasts.entities.ai.SmoothSwimGoal;
 import com.cgessinger.creaturesandbeasts.init.CNBMinipadTypes;
 import com.cgessinger.creaturesandbeasts.init.CNBSoundEvents;
 import com.cgessinger.creaturesandbeasts.util.MinipadGlow;
@@ -77,6 +76,10 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     private static final int MAX_STILL_WATER_COLUMN_SEARCH = 24;
     private static final double WATER_FLOAT_DAMPING = 0.5D;
     private static final double WATER_FLOAT_LIFT = 0.03D;
+    private static final double SUBMERGED_FLOAT_JUMP_THRESHOLD = 0.5D;
+    private static final double SHALLOW_FLOAT_LIFT = 0.005D;
+    private static final double WATER_SURFACE_RECOVERY_MAX_LIFT = 0.08D;
+    private static final double WATER_SURFACE_EPSILON = 1.0E-4D;
 
     private final AnimatableInstanceCache factory = GeckoLibUtil.createInstanceCache(this);
     private int shearedTimer;
@@ -136,7 +139,7 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
 
     @Override
     protected void registerGoals() {
-        this.goalSelector.addGoal(0, new SmoothSwimGoal(this));
+        this.goalSelector.addGoal(0, new MinipadFloatGoal(this));
         this.goalSelector.addGoal(1, new MinipadPanicGoal(this, 1.25D));
         this.goalSelector.addGoal(2, new MinipadReturnToWaterGoal(this, 1.0D));
         this.goalSelector.addGoal(3, new MinipadRandomStrollGoal(this, 1.0D, 60, 240));
@@ -268,14 +271,59 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
             return;
         }
 
+        BlockPos pos = this.blockPosition();
         CollisionContext collisionContext = CollisionContext.of(this);
-        if (collisionContext.isAbove(this.getLiquidCollisionShape(), this.blockPosition(), true)
-                && !this.level().getFluidState(this.blockPosition().above()).is(FluidTags.WATER)) {
+        if (collisionContext.isAbove(this.getLiquidCollisionShape(), pos, true)
+                && !this.level().getFluidState(pos.above()).is(FluidTags.WATER)) {
             this.setOnGround(true);
+            this.stopUpwardSurfaceMovement();
+            return;
+        }
+
+        if (this.isBelowWaterSurfaceSupport(pos)) {
+            this.liftTowardWaterSurface(pos);
             return;
         }
 
         this.setDeltaMovement(this.getDeltaMovement().multiply(1.0D, WATER_FLOAT_DAMPING, 1.0D).add(0.0D, WATER_FLOAT_LIFT, 0.0D));
+    }
+
+    private boolean isBelowWaterSurfaceSupport(BlockPos pos) {
+        return this.isSurfaceWater(pos)
+                && this.getY() < getWaterSurfaceSupportY(pos) - WATER_SURFACE_EPSILON;
+    }
+
+    private void liftTowardWaterSurface(BlockPos pos) {
+        double surfaceSupportY = getWaterSurfaceSupportY(pos);
+        double remainingLift = surfaceSupportY - this.getY();
+        double lift = Math.min(WATER_SURFACE_RECOVERY_MAX_LIFT, Math.max(WATER_FLOAT_LIFT, remainingLift * 0.5D));
+        Vec3 movement = this.getDeltaMovement();
+        this.setDeltaMovement(movement.x, Math.max(movement.y, lift), movement.z);
+    }
+
+    private void stopUpwardSurfaceMovement() {
+        Vec3 movement = this.getDeltaMovement();
+        if (movement.y > 0.0D) {
+            this.setDeltaMovement(movement.x, 0.0D, movement.z);
+        }
+    }
+
+    private boolean isDeeplySubmerged() {
+        return this.getFluidHeight(FluidTags.WATER) > SUBMERGED_FLOAT_JUMP_THRESHOLD
+                && this.hasWaterAbove(this.blockPosition());
+    }
+
+    private boolean isSurfaceWater(BlockPos pos) {
+        return this.level().getFluidState(pos).is(FluidTags.WATER)
+                && !this.hasWaterAbove(pos);
+    }
+
+    private boolean hasWaterAbove(BlockPos pos) {
+        return this.level().getFluidState(pos.above()).is(FluidTags.WATER);
+    }
+
+    private static double getWaterSurfaceSupportY(BlockPos pos) {
+        return pos.getY() + WATER_COLLISION_HEIGHT / 16.0D;
     }
 
     @Override
@@ -453,6 +501,25 @@ public class MinipadEntity extends Animal implements Shearable, GeoEntity {
     @Override
     public AnimatableInstanceCache getAnimatableInstanceCache() {
         return this.factory;
+    }
+
+    private static class MinipadFloatGoal extends FloatGoal {
+        private final MinipadEntity minipad;
+
+        private MinipadFloatGoal(MinipadEntity minipad) {
+            super(minipad);
+            this.minipad = minipad;
+        }
+
+        @Override
+        public void tick() {
+            if (this.minipad.isDeeplySubmerged()) {
+                this.minipad.getJumpControl().jump();
+                return;
+            }
+
+            this.minipad.setDeltaMovement(this.minipad.getDeltaMovement().add(0.0D, SHALLOW_FLOAT_LIFT, 0.0D));
+        }
     }
 
     static class MinipadPanicGoal extends PanicGoal {
