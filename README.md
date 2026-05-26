@@ -60,12 +60,6 @@ AI assistance was used for:
 
 All changes were reviewed and tested locally during the porting process.
 
-## 📦 Reference Files
-
-Local reference jars used during development are intentionally **not included** in this repository.
-
-The `reference/` folder is ignored because it may contain original mod/dependency jars used only for comparison while porting.
-
 ## ⚠️ Disclaimer
 
 This is **not an official Creatures and Beasts release**.
